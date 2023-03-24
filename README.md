@@ -5,7 +5,6 @@ It's a python code for fitting kilo-au scale elongated structures, often called 
 2. If yes, then how well can we characterise them?
 
 ## Desciption of main files
-tipsy.py : Main file with codes for generating trajectories and fitting them
-
+tipsy.py : Main file with codes for generating trajectories and fitting them   
 trivia_my.py : Code for visualising PPV diagrams (modified version of https://github.com/jaehanbae/trivia)   
 tipsy_hltau.ipynb : Notebook showing example of fitting HL Tau using TIPSY 
