@@ -13,11 +13,13 @@ from sklearn.model_selection import ParameterGrid
 from scipy.interpolate import interp1d
 import time
 
-def arcsec2au(a,dist):  # take values in arcsec, return in au
+def arcsec2au(a,dist):  
+    ''' take values in arcsec, return in au using distance (with units) '''
     a2 = (a*u.arcsec).to(u.radian).value
     return((a2*dist).to(u.au).value)
 
-def au2arcsec(a,dist):  # take values in au, return in arcsec
+def au2arcsec(a,dist):  
+    ''' take values in au, return in arcsec using distance (with units) '''
     a2 = ((a*u.au/dist.to(u.au))*u.radian)
     return(a2.to(u.arcsec).value)
 
@@ -652,3 +654,100 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
             html_path = str(input("Path to store html 3D plot:"))
         fig.write_html(html_path, include_plotlyjs='cdn')
     fig.show()
+    
+def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
+
+    '''
+    Code to get a subset of the original cube (subcube) for the given limits
+    
+    Args:
+    original_cube: SpectralCube object from which to get the subcube
+    xmin: Min. R.A. offset in arcsec
+    xmax: Max. R.A. offset in arcsec
+    ymin: Min. Decl. offset in arcsec
+    ymax: Max. Decl. offset in arcsec
+    vmin: Min. radial vel. in same units as spectral axis of cube
+    vmax: Max. radial vel. in same units as spectral axis of cube
+    rms_thresh: This will be multiplied to the median-absolute-deviation of the subcube fluxes to remove low flux pixels
+    
+    Returns:
+    scube_cleaned: SpectralCube object with only the dominant cluster of emisssion (usually cleaned streamer emission)
+    '''
+    
+    info_header = original_cube.header
+    x_conv_fac = 1/60/60/info_header['CDELT1']
+    xmin_p = int((xmin*x_conv_fac)+info_header['CRPIX1'])
+    xmax_p = int((xmax*x_conv_fac)+info_header['CRPIX1'])
+    y_conv_fac = 1/60/60/info_header['CDELT2']
+    ymin_p = int((ymin*y_conv_fac)+info_header['CRPIX2'])
+    ymax_p = int((ymax*y_conv_fac)+info_header['CRPIX2'])
+    vunit = original_cube.spectral_axis.unit
+    
+    original_cubev = original_cube.spectral_slab(vmin*vunit,vmax*vunit)    # Selecting velocities
+    original_cubevc = original_cubev[:,min(ymin_p,ymax_p):max(ymin_p,ymax_p)   
+                     ,min(xmin_p,xmax_p):max(xmin_p,xmax_p)]   # Selecting pixels
+    
+    subcube = original_cubevc.with_mask(original_cubevc > rms_thresh*original_cubevc.mad_std())  # Removing low flux values 
+    return(subcube)
+
+def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
+
+    '''
+    Code to remove random blobs of emission in the streamer subcube, using clustering algorithm
+    
+    Args:
+    scube: SpectralCube object (subcube) with streamer emission
+    use_scaled_inds (Optional[bool]): Whether to use scaled indices for cluster identification
+    model (Optional): sklearn.cluster type model to be used for cluster identification
+    show_cluster (Optional[bool]): Whether to show 3D plot with main cluster marked
+    
+    Returns:
+    scube_cleaned: SpectralCube object with only the dominant cluster of emisssion (usually cleaned streamer emission)
+    
+    '''
+    
+    pcloud = np.array(scube)
+    rms_mask = ~np.isnan(pcloud)
+    pcinds = np.indices(pcloud.shape)#.shape   #Array of indices of all points in streamer point cloud
+    pcz = pcinds[0][rms_mask]    #Individual indices with high enough SNR
+    pcy = pcinds[1][rms_mask]
+    pcx = pcinds[2][rms_mask]
+    pc_inds=np.array([pcx,pcy,pcz]).T
+    
+    if use_scaled_inds:   # if you want to scale indices first, usually not good result
+        from sklearn.preprocessing import StandardScaler
+        scaler = StandardScaler()
+        pc_inds_s = scaler.fit_transform(pc_inds)
+        pc_inds2 = pc_inds_s
+    else:
+        pc_inds2 = pc_inds
+    
+    if model is None:  # Default clustering model is OPTICS
+        from sklearn.cluster import OPTICS
+        model = OPTICS()
+        
+    # fit model and predict clusters
+    yhat = model.fit_predict(pc_inds2)
+    # retrieve unique clusters
+    clusters = np.unique(yhat, return_counts=True)
+    cinds = (yhat==clusters[0][np.argmax(clusters[1])])
+    # show clustering result
+    if show_cluster:
+        pc=[go.Scatter3d(x=pc_inds[:,0][cinds], y=pc_inds[:,1][cinds], z=pc_inds[:,2][cinds],name="Streamer",mode='markers',
+               marker=dict(size=2,color='red',opacity=0.6)
+               )]
+        pc2=[go.Scatter3d(x=pc_inds[:,0][~cinds], y=pc_inds[:,1][~cinds], z=pc_inds[:,2][~cinds],name="Random blobs?",mode='markers',
+               marker=dict(size=2,color='black',opacity=0.6)
+               )]
+        fig = go.Figure(data=pc+pc2)
+        fig.show()
+    
+    # applying cluster masking on streamer subcude
+    inds_cluster = pc_inds[cinds]
+    cmask = np.full(pcloud.shape,False)
+    for ind in inds_cluster:
+        cmask[ind[2],ind[1],ind[0]] = True
+    scube_cleaned = scube.with_mask(cmask)
+    # scube_cleaned.write(fits_fil[:-5]+'_streamer.fits',format = 'fits',overwrite = True)
+    return(scube_cleaned)
+    
