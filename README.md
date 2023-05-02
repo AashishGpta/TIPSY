@@ -9,4 +9,4 @@ tipsy.py : Main file with codes for generating trajectories and fitting them
 trivia_my.py : Code for visualising PPV diagrams (modified version of https://github.com/jaehanbae/trivia)   
 tipsy_hltau.ipynb : Notebook showing example of fitting HL Tau using TIPSY 
 
-IMPORTANT: This work is still in progress, please use caution when interpreting results. 
+Important: This work is still in progress, please use caution when interpreting results. 
