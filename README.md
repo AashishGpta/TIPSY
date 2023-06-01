@@ -1,6 +1,7 @@
 # TIPSY
 TIPSY stands for Trajectory of Infalling Particles in Streamers around Young stars.
-It's a python code for fitting molecular-line observations of elongated structures, often called streamers, around young stars. The objective is to check:
+It's a python code for fitting molecular-line observations of elongated structures, often called streamers, around young stars. The code fits such structures with theorectically expected trajectories of infalling gas, following the equations given in Mendoza et al. 2019 (https://ui.adsabs.harvard.edu/abs/2009MNRAS.393..579M/abstract).
+The objective is to check:
 1. If these structures are infalling streamers?
 2. If yes, then how well can we characterise them?
 
