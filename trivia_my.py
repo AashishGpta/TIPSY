@@ -8,7 +8,8 @@ from scipy.interpolate import CubicSpline
 from gofish import imagecube
 from matplotlib import cm
 from matplotlib.colors import ListedColormap, LinearSegmentedColormap
-
+import PIL  # added by Aashish for rotating GIFs
+import io   # added by Aashish for rotating GIFs
 
 def read_cube(path, clip=None, rmin=None, rmax=None, N=None, vmin=None, vmax=None, dv=None, vunit_per_s=None):
     # Read in the FITS data.
@@ -85,7 +86,8 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         show_colorbar=True, camera_eye_x=-1., camera_eye_y=-2., camera_eye_z=1.,
         show_figure=False, write_pdf=True, write_html=True, write_csv=False,
         vunit_per_s='m', source_ra_off=None, source_dec_off=None, source_vel=None, bool_traj = False, traj = None,
-        path2=None, clip2=3., marker_color=None,marker_color2=None,out_filename=None):
+        path2=None, clip2=3., marker_color=None,marker_color2=None,out_filename=None,
+        write_gif=False,gif_start_ang=90,gif_duration=3,gif_N_angs = 15,gif_loops=0):
     """
     Make a three-dimensional position-position-velocity diagram.
 
@@ -143,10 +145,15 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         clip2 (Optional[float]): Clip the second cube having cube2.data > clip * cube2.rms
         marker_color (Optional[str]): Color for all the cube data markers, overrides cmap
         marker_color2 (Optional[str]): Color for all the second cube data markers, overrides cmap
-        out_filename (Optional[str]): Name for the output files (.html and .pdf)
+        out_filename (Optional[str]): Name for the output files (.html, .pdf and .gif)
+        write_gif (Optional[bool]): If True, save a rotating plot as a gif
+        gif_start_ang (Optional[float]): Angle (projection) (in degrees) for the starting and ending frame of the gif, can be experimented with
+        gif_duration (Optional[float]): Total duration of one gif loop, in seconds
+        gif_N_angs (Optional[float]): Total no. of frames in one gif loop
+        gif_loops (Optional[int]): Total no. of time gif loops, by default it is 0 and it means gif doesn't stop looping
         
     Returns:
-        PPV diagram in a pdf and/or a html format.
+        PPV diagram. Can also save in a pdf, html or gif format.
     """
  
     vmin0 = vmin
@@ -160,9 +167,9 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         opacity[:] = constant_opacity
     data = []
 
-    xaxis_title = 'RA offset [arcsec]' if xaxis_title is None else xaxis_title
-    yaxis_title = 'Dec offset [arcsec]' if yaxis_title is None else yaxis_title
-    zaxis_title = 'velocity [km/s]' if zaxis_title is None else zaxis_title
+    xaxis_title = 'R.A. offset [arcsec]' if xaxis_title is None else xaxis_title
+    yaxis_title = 'Decl. offset [arcsec]' if yaxis_title is None else yaxis_title
+    zaxis_title = 'Radial velocity [km/s]' if zaxis_title is None else zaxis_title
     xaxis_backgroundcolor = 'white' if xaxis_backgroundcolor is None else xaxis_backgroundcolor
     xaxis_gridcolor = 'gray' if xaxis_gridcolor is None else xaxis_gridcolor
     yaxis_backgroundcolor = 'white' if yaxis_backgroundcolor is None else yaxis_backgroundcolor
@@ -237,7 +244,7 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
                                hoverinfo=hoverinfo,)]
 
         
-    ## overplotting infalling trajectories
+    ## overplotting trajectories
     traj_line = []
     if bool_traj:
         if traj != None:
@@ -362,10 +369,58 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
 
     if show_figure:
         fig.show()
+    
     if write_pdf:
         fig.write_image(out_filename +'.pdf')
+    
     if write_html:
         fig.write_html(out_filename +'.html', include_plotlyjs=True)
+    
+    if write_gif:
+        print("Saving GIF...")
+        
+        # Rotate the plot
+        ang_step = 360/gif_N_angs   # Step between angles
+        angs1 = np.arange(gif_start_ang,gif_start_ang-180,-ang_step)
+        angs2 = np.arange(gif_start_ang,gif_start_ang+180,ang_step)
+        angs = np.concatenate([angs2,(angs1[::-1]+360)%360])   # Array of all angles
+        zoom_fac = 2.3 # Adjusts size of the image
+        frames = []
+        for i in range(gif_N_angs):
+            frame = go.Frame(layout=dict(scene_camera=dict(eye=dict(x=zoom_fac*np.cos(np.radians(angs[i])),
+                                                             y=zoom_fac*np.sin(np.radians(angs[i])),
+                                                             z=zoom_fac*0.5))))
+            frames.append(frame)
+        fig.frames = frames
+
+#         ### Following is to show the rotating plot in jupyter, not required for GIF
+#         # Set animation settings
+#         animation_settings = dict(frame=dict(duration=50, redraw=True),romcurrent=True,
+#             transition=dict(duration=100, easing='quadratic-in-out'),)
+#         # Add buttons to control the animation
+#         fig.update_layout(updatemenus=[dict(type="buttons",buttons=[
+#                      dict(label="Play",method="animate",args=[None, animation_settings]),
+#                      dict(label="Pause",method="animate",args=['null',dict(mode= "immediate")])
+#                  ],),])
+
+        # generate images for each step in animation
+        gif_frames = []
+        for s, fr in enumerate(fig.frames):
+            # set main traces to appropriate traces within plotly frame
+            fig.update(data=fr.data,layout=fr.layout)
+            # generate image of current state
+            gif_frames.append(PIL.Image.open(io.BytesIO(fig.to_image(format="png"))))
+
+        # create animated GIF
+        gif_frames[0].save(
+                out_filename +'.gif',
+                save_all=True,
+                append_images=gif_frames[1:],
+                optimize=True,
+                duration=(gif_duration*1000)/gif_N_angs,  # Total will take gif_duration*1000 milli-secs, /gif_N_angs for per frame
+                loop=gif_loops,
+            )
+
     if write_csv:
         df = pd.DataFrame({"RA offset" : x, "Dec offset" : y, "velocity" : v})
         df.to_csv(out_filename +'.csv', float_format='%.3e', index=False)

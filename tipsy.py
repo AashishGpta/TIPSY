@@ -59,17 +59,14 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
     ### Unit vectors of rotated frame
     r0_mag = LA.norm(r0_v)
     r0_e = r0_v/r0_mag
-    r0_e
 
     n_v = np.cross(r0_v,v0_v)  #normal to r0_v and v0_v plane
     n_mag = LA.norm(n_v)
     n_e = n_v/n_mag
-    # n_e
 
     m_v = np.cross(r0_v,n_v)  #normal to r0_v and v0_v plane
     m_mag = LA.norm(m_v)
     m_e = m_v/m_mag
-    # m_e
 
     ### Coordinate transformation
     trans1 = np.array([m_e,r0_e,n_e])
@@ -206,7 +203,7 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
 
 def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e4,verbose = True):
     '''
-    Returns positions and velocities for an infalling particle based on rebound simulations
+    Returns positions and velocities for an infalling particle based on rebound simulations. Can be used for comparison (or as an alternative to trajectories from Mendoza et al. 2009 models.
     
     Args:
     x0: Initial position in R.A. [au]
@@ -342,7 +339,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     if verbose:
         print("Partition boundaries for projected distances:",np.round(pars,3))
 
-    ## Point cloud to array of weighted-mean values (a curv-like representation)
+    ## Point cloud to array of weighted-mean values (a curve-like representation)
     pcmeans = np.zeros((3,N_elements))  # intialize "empty" array
     pcstds = np.zeros((3,N_elements))  # intialize "empty" array
     for i in range(N_elements):
@@ -355,8 +352,8 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
 
     ## Initial distance (arcseec to au)
     dist = dist*u.pc # just for consistency with other codes
-    x0_as = pcmeans[0][-1] #-1.7 #*u.arcsec
-    y0_as = pcmeans[1][-1] #-1.4 #*u.arcsec
+    x0_as = pcmeans[0][-1] #*u.arcsec
+    y0_as = pcmeans[1][-1] #*u.arcsec
     x0 = arcsec2au(x0_as,dist)
     y0 = arcsec2au(y0_as,dist) #(x0_as.to(u.radian).value*dist).to(u.au).value
     ## Initial velocity (km/s)
@@ -373,7 +370,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             print("BMAJ field doesn't exist in fits header, trying to use pixel size (CDELT2)")
             bsize = np.abs(streamer_cube.header['CDELT2'])
         bsize_au = arcsec2au(bsize*60*60,dist)  # Beam size in au
-        z0_step = bsize_au
+        z0_step = np.abs(bsize_au)
     if z0_lim == None:
         dev = (np.abs(x0)+np.abs(y0))/2   # Typical deviation in au
         dev_z = (-1*np.sign(vz0))*dev   # Expected deviation in z (au), (NOTE: vz0*timescale could also be used)
@@ -390,7 +387,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     ## Initial offset in P.O.S speed
     if vxy0_step == None:
         cwidth = streamer_cube.header['CDELT3']
-        vxy0_step = cwidth
+        vxy0_step = np.abs(cwidth)
     if vxy0_lim == None:
         dev_vxy = np.abs(vz0)*(2**0.5)    #Rough estimate of vxy0 (NOTE: dev/timescale could also be used)
         d_dev_vxy = max(10*vxy0_step,2)      # No good reason to choose 10 or 5 :P
@@ -413,7 +410,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             e_y = pcstds[1][-2]  # Error in dy
             r = dy/dx
             e_r = r*np.sqrt((e_x/dx)**2 + (e_y/dy)**2)
-            vxy_ang0_error = e_r/(1+r**2) # Error in vxy_ang0
+            vxy_ang0_error = np.abs(e_r/(1+r**2)) # Error in vxy_ang0
             vxy_ang0_span = 2*vxy_ang0_error
         r1 = np.arange(vxy_ang0_est,vxy_ang0_est+(vxy_ang0_span/2),vxy_ang0_step)
         r2 = np.arange(vxy_ang0_est,vxy_ang0_est-(vxy_ang0_span/2),-vxy_ang0_step)
@@ -453,7 +450,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         print("Total no. of parameter combinations:",N_params)
 
     ## Fitting finally (NOTE: Can be optimized to not check for unneccessary values)
-    max_frac = 0
+    max_frac = -1
     min_dev = np.inf
     for i in range(N_params):
 
@@ -479,34 +476,36 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         con2 = (pctraj_full[iaxis]>=min(pccoords[iaxis])) & (pctraj_full[iaxis]<=max(pccoords[iaxis]))
         pctraj=pctraj_full[:,con1&con2]
 
-        # Interpolating trajectory to same "distances" (used as independent param.) as means
-        # Note: Sometimes the function extrapolates too (for smaller distances), not always a good one
-        r_t,theta_t = spherical_coords(pctraj[0],pctraj[1])
-        theta_ref_t = np.median(theta_t[r_t<np.percentile(r_t,r_percentile_thresh)])
-        theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_t))  # Calculating new theta_ref for traj, can avoid weirdnesses
-    #     theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations, right thing to do?
-        d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
-        p = np.argsort(d_t)
-        # I experimented with different interpolation methods to get theoretical values corresponding to means
-        # Note: this is one of the trickiest part, incorrect interpolation (or extrapolation) can mess up everything
-#         pdeg = N_elements-1#6#(N_elements//2)
-#         coeffs = np.polyfit(d_t[p],pctraj[0][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-#         spx = np.poly1d(coeffs)
-#         coeffs = np.polyfit(d_t[p],pctraj[1][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-#         spy = np.poly1d(coeffs)
-#         coeffs = np.polyfit(d_t[p],pctraj[2][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-#         spz = np.poly1d(coeffs)
-#         spx = CubicSpline(d_t[p], pctraj[0][p],bc_type='natural')#, s=s)
-#         spy = CubicSpline(d_t[p], pctraj[1][p],bc_type='natural')#, s=s)
-#         spz = CubicSpline(d_t[p], pctraj[2][p],bc_type='natural')#, s=s)
-#         kspline = 5
-#         spx = UnivariateSpline(d_t[p], pctraj[0][p],k=kspline)#, s=s)
-#         spy = UnivariateSpline(d_t[p], pctraj[1][p],k=kspline)#, s=s)
-#         spz = UnivariateSpline(d_t[p], pctraj[2][p],k=kspline)#, s=s)
-        spx = interp1d(d_t[p], pctraj[0][p],fill_value='extrapolate',kind='slinear')#, s=s)
-        spy = interp1d(d_t[p], pctraj[1][p],fill_value='extrapolate',kind='slinear')#, s=s)
-        spz = interp1d(d_t[p], pctraj[2][p],fill_value='extrapolate',kind='slinear')#, s=s)
-        traj_comp = np.array([spx(d_means),spy(d_means),spz(d_means)])
+
+        if pctraj.shape[1]>2:   #check if some traj. even left within the streamer field       
+            # Interpolating trajectory to same "distances" (used as independent param.) as means
+            # Note: Sometimes the function extrapolates too (for smaller distances), not always a good one
+            r_t,theta_t = spherical_coords(pctraj[0],pctraj[1])
+            theta_ref_t = np.median(theta_t[r_t<np.percentile(r_t,r_percentile_thresh)])
+            theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_t))  # Calculating new theta_ref for traj, can avoid weirdnesses
+        #     theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations, right thing to do?
+            d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
+            p = np.argsort(d_t)
+        #         pdeg = N_elements-1#6#(N_elements//2)
+        #         coeffs = np.polyfit(d_t[p],pctraj[0][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
+        #         spx = np.poly1d(coeffs)
+        #         coeffs = np.polyfit(d_t[p],pctraj[1][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
+        #         spy = np.poly1d(coeffs)
+        #         coeffs = np.polyfit(d_t[p],pctraj[2][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
+        #         spz = np.poly1d(coeffs)
+        #     spx = CubicSpline(d_t[p], pctraj[0][p],bc_type='natural')#, s=s)
+        #     spy = CubicSpline(d_t[p], pctraj[1][p],bc_type='natural')#, s=s)
+        #     spz = CubicSpline(d_t[p], pctraj[2][p],bc_type='natural')#, s=s)
+        #     kspline = 5
+        #     spx = UnivariateSpline(d_t[p], pctraj[0][p],k=kspline)#, s=s)
+        #     spy = UnivariateSpline(d_t[p], pctraj[1][p],k=kspline)#, s=s)
+        #     spz = UnivariateSpline(d_t[p], pctraj[2][p],k=kspline)#, s=s)
+            spx = interp1d(d_t[p], pctraj[0][p],fill_value='extrapolate',kind='slinear')#, s=s)
+            spy = interp1d(d_t[p], pctraj[1][p],fill_value='extrapolate',kind='slinear')#, s=s)
+            spz = interp1d(d_t[p], pctraj[2][p],fill_value='extrapolate',kind='slinear')#, s=s)
+            traj_comp = np.array([spx(d_means),spy(d_means),spz(d_means)])
+        else:
+            traj_comp = np.full(pcmeans.shape,np.nan)  # Just nan array of same shape
 
         res = pcmeans-traj_comp
         res_norm_sq = (res/pcstds)**2
@@ -545,18 +544,22 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         ang_means = param_grid2.groupby('vxy_ang0').mean()
         ang_stds = param_grid2.groupby('vxy_ang0').std()
         plt.errorbar(ang_means.index*180/np.pi,ang_means.fit_fraction,yerr=ang_stds.fit_fraction,fmt='o')
-        plt.plot(param_m['vxy_ang0']*180/np.pi,param_m.fit_fraction,'r*',markersize=15)
+        plt.plot(param_m['vxy_ang0']*180/np.pi,param_m.fit_fraction,'rx',markersize=15)
         plt.xlabel('Orientation of initial P.O.S. velocity [degree]')
         plt.ylabel('Mean fitting fraction')
         plt.show()
 
         grid2display = param_grid2[param_grid2['vxy_ang0']==param_m['vxy_ang0']]
-
+        cmap = plt.cm.viridis
+        cmap.set_bad(color='white')  # Nan values will show as red
+        
         ## Distribution of fitting fraction wrt z0 and vxy0
         cfield = 'fit_fraction'
         pivot_df = grid2display.pivot(index='z0', columns='vxy0', values=cfield)
-        plt.imshow(pivot_df,extent = [pivot_df.columns[0],pivot_df.columns[-1]
-                                      ,pivot_df.index[-1],pivot_df.index[0]],aspect='auto')#[i][j]
+        pivot_df.sort_index(axis=0,inplace=True,ascending=True)
+        pivot_df.sort_index(axis=1,inplace=True,ascending=True)
+        plt.imshow(pivot_df,extent = [pivot_df.columns[0]-vxy0_step/2,pivot_df.columns[-1]+vxy0_step/2
+                                      ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap)
         plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 20)
         plt.ylabel('Initial radial distance [au]')
         plt.xlabel('Initial POS speed [km/s]')
@@ -567,14 +570,16 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         cfield = 'loglogdev'
         grid2display['loglogdev'] = np.log10(np.log10(grid2display['deviation']))
         pivot_df = grid2display.pivot(index='z0', columns='vxy0', values=cfield)
-        plt.imshow(pivot_df,extent = [pivot_df.columns[0],pivot_df.columns[-1]
-                                      ,pivot_df.index[-1],pivot_df.index[0]],aspect='auto')#[i][j]
+        pivot_df.sort_index(axis=0,inplace=True,ascending=True)
+        pivot_df.sort_index(axis=1,inplace=True,ascending=True)
+        plt.imshow(pivot_df,extent = [pivot_df.columns[0]-vxy0_step/2,pivot_df.columns[-1]+vxy0_step/2
+                                      ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap)
         plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 20)
         plt.ylabel('Initial radial distance [au]')
         plt.xlabel('Initial POS speed [km/s]')
         plt.colorbar(label='log(log(deviation))')
         plt.show()
-
+        
     if show_fit_3d:
         x_t = au2arcsec(traj_m[0][0],dist)
         y_t = au2arcsec(traj_m[0][1],dist)
@@ -597,8 +602,7 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
     traj: 3xN1 array containing coordinates for a theoretical trajectory
     traj_interp: 3xN_elements array containing interpolated (or some extrapolated) coordinates for a theoretical trajectory
     fit2html: Whether to save 3D fitting plot to .html file
-    html_path: Path to save 3D fitting plot to .html file    
-    
+    html_path: Path to save 3D fitting plot to .html file        
     '''
     
     data2plt = []
@@ -674,7 +678,7 @@ def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
     scube_cleaned: SpectralCube object with only the dominant cluster of emisssion (usually cleaned streamer emission)
     '''
     
-    info_header = original_cube.header
+    info_header = original_cube.header  # header of the cube, contains required information
     x_conv_fac = 1/60/60/info_header['CDELT1']
     xmin_p = int((xmin*x_conv_fac)+info_header['CRPIX1'])
     xmax_p = int((xmax*x_conv_fac)+info_header['CRPIX1'])
@@ -682,11 +686,12 @@ def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
     ymin_p = int((ymin*y_conv_fac)+info_header['CRPIX2'])
     ymax_p = int((ymax*y_conv_fac)+info_header['CRPIX2'])
     vunit = original_cube.spectral_axis.unit
+    ## Note: a check can be added to see if requested limits are within the limits of the cube itself
     
     original_cubev = original_cube.spectral_slab(vmin*vunit,vmax*vunit)    # Selecting velocities
     original_cubevc = original_cubev[:,min(ymin_p,ymax_p):max(ymin_p,ymax_p)   
                      ,min(xmin_p,xmax_p):max(xmin_p,xmax_p)]   # Selecting pixels
-    
+#     print(min(ymin_p,ymax_p),max(ymin_p,ymax_p),min(xmin_p,xmax_p),max(xmin_p,xmax_p)) 
     subcube = original_cubevc.with_mask(original_cubevc > rms_thresh*original_cubevc.mad_std())  # Removing low flux values 
     return(subcube)
 
@@ -751,3 +756,67 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
     # scube_cleaned.write(fits_fil[:-5]+'_streamer.fits',format = 'fits',overwrite = True)
     return(scube_cleaned)
     
+def parameter_errors(params, criteria='fit_fraction', threshold=0.90,min_resolution=True
+                      ,seperate_vxy=True,mean_replace=True):
+    '''
+    Code to estimate uncertainities of free parameters used for TIPSY fitting. 
+    
+    Args:
+    params: Pandas DataFrame with all the parameter combinations used and corresponding deviations
+    criteria (Optional[str]): Quantity to be used to select good-enough fits for errors
+    threshold (Optional[float]): Lower limiting value of 'criteria', to select good-enough fits for errors
+    min_resolution (Optional[bool]): If True, replaces calculated errors less than the fitting resolution, with the fitting resolution
+    seperate_vxy (Optional[bool]): If True, also provides errors for speed in R.A. and Decl. (vx0 and vy0), using error propogation
+    mean_replace (Optional[bool]): If True, replaces the 'value' calculated as means of distributions of free parameters 
+    with the parameter combination for the best overall fit (maximised fit_fraction, minimized chi2).
+    This is more useful if you want to use the best parameter combination for future analysis.
+    
+    Returns:
+    vals: Pandas DataFrame with representative values and standard deviations (errors) for all the free parameters for good-enough fits
+'''
+    from uncertainties import ufloat,umath
+    
+    paramsg = params[params[criteria]>threshold]  # Good-enough fits
+
+#     params2 = params[params.fit_fraction == params.fit_fraction.max()]
+#     params3 = params2[params2.deviation == params2.deviation.min()]  # best parameter combination
+#     bools = [[]]*len(pnames)    # positions where each parameter is same as the one for the best overall solution
+#     bools[0] = (paramsg[pnames[0]] == params3[pnames[0]].median())
+#     bools[1] = (paramsg[pnames[1]] == params3[pnames[1]].median())
+#     bools[2] = (paramsg[pnames[2]] == params3[pnames[2]].median())
+#     arrs = [[]]*len(pnames)   # Fix two parameters and get values for the third parameter
+#     arrs[0] = paramsg[bools[2] & bools[1]][pnames[0]]
+#     arrs[1] = paramsg[bools[2] & bools[0]][pnames[1]]
+#     arrs[2] = paramsg[bools[0] & bools[1]][pnames[2]]
+
+    pnames = ['vxy0','vxy_ang0','z0']  # (free) parameters to consider, could be a free parameter in future
+    vals = pd.DataFrame(index=pnames,columns=['value','error'])
+
+    for i in range(len(pnames)):
+        q=paramsg[pnames[i]]
+        vals.loc[pnames[i],'value'] = np.nanmean(q)
+        vals.loc[pnames[i],'error'] = np.nanstd(q)
+        
+    if mean_replace: # replace calculated means with the parameter combination for the best fit
+        params2 = params[params.fit_fraction == params.fit_fraction.max()]
+        params3 = params2[params2.deviation == params2.deviation.min()]  # best parameter combination
+        vals.loc[pnames,'value'] = params3[pnames].median()
+
+    if min_resolution:
+        # if calculated errors are less that resolution used in fitting, replace them with the resolution
+        min_errors = [np.nan]*len(pnames)
+        for i in range(len(pnames)):
+            temp = np.sort(params[pnames[i]].unique()) # sorted array of unique values
+            min_errors[i] = np.abs(temp[1]-temp[0])  # Diff. between second-smallest and smallest values
+        vals.error = np.where(vals.error<min_errors, min_errors, vals.error)
+        
+    if seperate_vxy:
+        u_vxy_ang0 = ufloat(vals.loc['vxy_ang0','value'],vals.loc['vxy_ang0','error']) # reformatting errors in uncertainties format
+        u_vxy0 = ufloat(vals.loc['vxy0','value'],vals.loc['vxy0','error'])
+        u_vx0 = u_vxy0*umath.cos(u_vxy_ang0)  # Using uncertainties package for easy error propogations, can be replaced
+        u_vy0 = u_vxy0*umath.sin(u_vxy_ang0)
+        vals.loc['vx0']=[u_vx0.n,u_vx0.s]
+        vals.loc['vy0']=[u_vy0.n,u_vy0.s]
+
+    return(vals)
+
