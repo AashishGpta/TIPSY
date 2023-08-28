@@ -50,6 +50,7 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
     vc1_t: Particle's velocities along the trajectory in original coordinates. Each sub-array is one axis.
     sr: Particle's positions along the trajectory in spherical coordinates. Each sub-array is one axis.
     sv: Particle's velocities along the trajectory in spherical coordinates. Each sub-array is one axis.
+    time_vals: Time for the particle to travel to the given point in trajectory, in years
     '''
 
     Ms = Ms_val*u.solMass
@@ -64,7 +65,7 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
     n_mag = LA.norm(n_v)
     n_e = n_v/n_mag
 
-    m_v = np.cross(r0_v,n_v)  #normal to r0_v and v0_v plane
+    m_v = np.cross(r0_v,n_v)  #normal to r0_v and m_v plane
     m_mag = LA.norm(m_v)
     m_e = m_v/m_mag
 
@@ -171,26 +172,32 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
 
     
     
-    ### Checks before returning
-    check1 = np.isclose(c1_t.T[0],r0_v,rtol=1e-2,atol=1e-2).all()  # Trajectory starts from correct position
-    if ~check1:
-        print("Potetial Inconsistency: Given initial positions:",r0_v,"Calculated initial positions:",c1_t.T[0])
-
-    check2 = np.isclose(vc1_t.T[0],v0_v,rtol=1e-2,atol=1e-2).all()  # Trajectory starts from correct velocity
-    if ~check2:
-        print("Potetial Inconsistency: Given initial velocities:",v0_v,"Calculated initial velocities:",vc1_t.T[0])
-    
-    dx = r[1:]-r[:-1]
+    dx = r[1:]-r[:-1]     # radial distance between consecutive phi steps
     dphi = (phi[1:]-phi[:-1])%(2*np.pi)
-    r_avg = (r[1:]+r[:-1])/2
-    v1_avg = (vr[1:]+vr[:-1])/2
-    v2_avg = (vphi[1:]+vphi[:-1])/2
-    dt = (dx/v1_avg).to(u.yr)
-    # time = np.cumsum(dt)
-    v2_avg2 = (r_avg*dphi/dt).to(vphi.unit)
-    check3 = (abs((v2_avg2-v2_avg)/v2_avg)[1:-1] < 0.2).all()#<0.0000001*v2_avg
-    if ~check3:
-        print("Cannot reporduce velocities using gradients.")
+    r_avg = (r[1:]+r[:-1])/2   # average distance between consecutive phi steps
+    v1_avg = (vr[1:]+vr[:-1])/2  # average velocity between consecutive phi steps
+    dt = (dx/v1_avg).to(u.yr)     # time between consecutive phi steps
+    dt_well_behaved = dt.copy()  # because I need original dt for check later
+    dt_well_behaved[np.sign(dt_well_behaved) == -1] = np.nan # neg. time diff means our assumptions are breaking, probably due to hyperbolic orbit
+    time_yr = np.cumsum(dt_well_behaved)
+    time_vals = np.concatenate(([0],time_yr.value))   # timestamps for the given phi step
+    
+    ### Checks before returning, added verbose to remove false alarms in fittig
+    if verbose:
+        check1 = np.isclose(c1_t.T[0],r0_v,rtol=1e0,atol=1e0).all()  # Trajectory starts from correct position
+        if ~check1:
+            print("Potetial Inconsistency: Given initial positions:",r0_v,"Calculated initial positions:",c1_t.T[0])
+    
+        check2 = np.isclose(vc1_t.T[0],v0_v,rtol=1e0,atol=1e0).all()  # Trajectory starts from correct velocity
+        if ~check2:
+            print("Potetial Inconsistency: Given initial velocities:",v0_v,"Calculated initial velocities:",vc1_t.T[0])
+    
+        v2_avg = (vphi[1:]+vphi[:-1])/2   # average velocity between consecutive phi steps
+        v2_avg2 = (r_avg*dphi/dt).to(vphi.unit)  
+        check3 = (abs((v2_avg2-v2_avg)/v2_avg)[1:-1] < 0.1).all()#<0.0000001*v2_avg
+        if ~check3:
+            print("Cannot reporduce velocities using gradients.")
+       
 
 #     # checking signs of gradients
 #     for i in range(len(c1_t)):
@@ -199,9 +206,9 @@ def falling_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,verbose = True,ang_range = 0.
 #         if ~(np.sign(np.gradient(x)) == np.sign(v+1e-4)).all():
 #             print("Sign of position gradients do not match velocities.")
 
-    return(c1_t,vc1_t,sr,sv)
+    return(c1_t,vc1_t,sr,sv,time_vals)
 
-def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e4,verbose = True):
+def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e6,N_out = 1000,verbose = True):
     '''
     Returns positions and velocities for an infalling particle based on rebound simulations. Can be used for comparison (or as an alternative to trajectories from Mendoza et al. 2009 models.
     
@@ -214,11 +221,13 @@ def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e4,verbose = True):
     vz0: Initial velocity in radial distance [km/s]
     Ms_val: Mass of central object(star) [solar mass]
     t_max: Time (in years) to compute the trajectory upto
+    N_out: No. of points needed in the trajectory, higher N_out means better time resolution
     verbose: Set False to not print intermediate outputs, default is True 
     
     Output:
     xyz: Particle's positions along the trajectory in original coordinates. Each sub-array is one axis.
     v_xyz: Particle's velocities along the trajectory in original coordinates. Each sub-array is one axis.
+    times: timestamps for the values along the trajectory 
     '''
     import rebound
     
@@ -242,7 +251,6 @@ def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e4,verbose = True):
         sim.status()
     # sim.N_active = 2
 
-    N_out = 100
     xyz = np.zeros((N_out, N_particle, N_dim))
     v_xyz = np.zeros((N_out, N_particle, N_dim))
     times = np.linspace(0, t_max, N_out)
@@ -252,13 +260,13 @@ def rebound_trajectory(x0,y0,z0,vx0,vy0,vz0,Ms_val,t_max = 1e4,verbose = True):
             xyz[i][j] = [p.x, p.y,p.z]        
             v_xyz[i][j] = [p.vx, p.vy,p.vz]
     v_xyz = (v_xyz*u.au/u.yr).to(u.km/u.s).value
-    return(xyz,v_xyz)
+    return(xyz,v_xyz,times)
     
 def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
                  ,vxy_ang0=None,vxy_ang0_span=None,vxy_ang0_step=0.0872
                  ,z0_lim=None,z0_step=None,vxy0_lim=None,vxy0_step=None
                  ,show_dist_plots=True,show_vel_ang=True,show_fit_cost=True,show_fit_3d=True,fit2html=False,html_path=None
-                 ,verbose=True):
+                 ,add_times=True, verbose=True):
     '''
     Code to fit infalling trajectories in PPV space to streamers.
     
@@ -282,6 +290,8 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     show_fit_3d (Optional[bool]): Whether to show 3D plot original point cloud, points used for fitting and final trajectory 
     fit2html (Optional[bool]): Whether to save 3D fitting plot to .html file
     html_path (Optional[str]): Path to save 3D fitting plot to .html file
+    add_times (Optional[bool]): Whether to add final times of trajectories (infalling time scales) to
+    the param_grid2 (dataframe with all initial parameter combinations, see output)
     verbose (Optional[bool]): Whether to display miscellaneous text outputs 
     
     Returns:
@@ -306,7 +316,8 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     ## Distance metric (independent parameter)
     pcd_r,pcd_theta = spherical_coords(pccoords[0],pccoords[1])
     r_percentile_thresh = 100/N_elements  # No. of points to consider for ref. angle
-    theta_ref = np.median(pcd_theta[pcd_r<np.percentile(pcd_r,r_percentile_thresh)])
+    r_thresh = np.percentile(pcd_r,r_percentile_thresh)
+    theta_ref = np.median(pcd_theta[pcd_r<r_thresh])
     # now we are interested in deviation of pcd_theta wrt theta_ref and this is not straightforward
     # we do not want deviation for angles close to theta_ref to be close to +-360
     # one way around is to have cyclic deviation upto 180, this is implemented below
@@ -315,23 +326,32 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     pcd = pcd_r*np.sqrt(1+(theta_weight*pcd_theta2)**2)
 
     
-    if show_dist_plots:
-#         plt.scatter(pccoords[0],pccoords[1],c=pcd_r)
-#         plt.colorbar(label='Projected distance (r)')
-#         plt.xlabel('R.A. [arcsec]')
-#         plt.ylabel('Decl. [arcsec]')
-#         plt.show()
+    if show_dist_plots:  # Show three plots depicting calculation of the dist. metric
+        fig, axs = plt.subplots(1,3,figsize=(17, 4))
+        fig.subplots_adjust(hspace=0.05, wspace=0.3)
 
-#         plt.scatter(pccoords[0],pccoords[1],c=pcd_theta2*180/np.pi)
-#         plt.colorbar(label=r'Projected angle ($\theta$)')
-#         plt.xlabel('R.A. [arcsec]')
-#         plt.ylabel('Decl. [arcsec]')
-#         plt.show()
+        ax=axs[0]
+        sc = ax.scatter(pccoords[0],pccoords[1],c=pcd_r,s=10,alpha=0.8)
+        plt.colorbar(sc,label=r'Projected distance ($r$)',ax=ax)
+        ax.set_xlabel('R.A. offset [arcsec]')
+        ax.set_ylabel('Decl. offset [arcsec]')
+        ax.set(aspect=1./ax.get_data_ratio())
 
-        plt.scatter(pccoords[0],pccoords[1],c=pcd)
-        plt.colorbar(label='Distance metric')
-        plt.xlabel('R.A. [arcsec]')
-        plt.ylabel('Decl. [arcsec]')
+        ax=axs[1]
+        sc = ax.scatter(pccoords[0],pccoords[1],c=pcd_theta2*180/np.pi,s=10,alpha=0.8)
+        plt.colorbar(sc,label=r'Projected angle ($\theta$)',ax=ax)
+        ax.set_xlabel('R.A. offset [arcsec]')
+        ax.set_ylabel('Decl. offset [arcsec]')
+        ax.set(aspect=1./ax.get_data_ratio())
+
+        ax=axs[2]
+        sc = ax.scatter(pccoords[0],pccoords[1],c=pcd,s=10,alpha=0.8)
+    #         plt.colorbar(sc,label=r'Distance metric ($\sqrt{r^{2}+(wr\theta)^{2}}$, $w=$'+str(theta_weight)+')',ax=ax)
+        plt.colorbar(sc,label=r'Distance metric ($\sqrt{r^{2}+(r\theta)^{2}}$)',ax=ax)
+        ax.set_xlabel('R.A. offset [arcsec]')
+        ax.set_ylabel('Decl. offset [arcsec]')
+        ax.set(aspect=1./ax.get_data_ratio())
+
         plt.show()
 
     b_per = np.linspace(0,100,N_elements+1)  # Array of percetile values to break the array into
@@ -432,7 +452,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
                    angles='xy',scale_units = 'dots',scale=0.01,label='Initial direction',zorder=5)
         for vxy_ang0_i in vxy_ang0_range:
             plt.quiver(pcmeans[0][-1],pcmeans[1][-1],np.cos(vxy_ang0_i),np.sin(vxy_ang0_i),
-                       angles='xy',scale_units = 'dots',scale=0.01,zorder=5,alpha=0.3)
+                       angles='xy',scale_units = 'dots',scale=0.01,zorder=5,alpha=0.3)  # Maybe something is wrong here, because spacing sometimes look unequal..
         plt.xlabel(labels[i1])
         plt.ylabel(labels[i2])
         plt.legend()
@@ -445,6 +465,9 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     param_grid2 = pd.DataFrame(ParameterGrid(param_grid))
     param_grid2['fit_fraction'] = np.nan
     param_grid2['deviation'] = np.nan
+    if add_times:
+        param_grid2['final_time'] = np.nan # to store infalling time scales
+        
     N_params = len(param_grid2)
     if verbose:
         print("Total no. of parameter combinations:",N_params)
@@ -461,8 +484,13 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         p = param_grid2.loc[i]
         vx0 = p['vxy0']*np.cos(p['vxy_ang0'])
         vy0 = p['vxy0']*np.sin(p['vxy_ang0'])
-        rt,vt,rt_spherical,vt_spherical = falling_trajectory(p['x0'],p['y0'],p['z0'],vx0,vy0,p['vz0'],Ms_val
+        rt,vt,rt_spherical,vt_spherical,times = falling_trajectory(p['x0'],p['y0'],p['z0'],vx0,vy0,p['vz0'],Ms_val
                                                              ,ang_range = 1*np.pi,ang_step = np.pi/100,verbose=False)
+        if add_times:
+            ftimes = times[np.argsort(np.abs(rt_spherical[0]))]  # Orders times on the basis of how close the particle is to the star, sort of final times we want
+            ftime = ftimes[~np.isnan(ftimes)][0]  # Select the first non nan final time, nan times are usually for hyperbolic trajectories
+            param_grid2.loc[i,'final_time'] = ftime  # storing the timestamp for closest approach as infalling timescale
+            # param_grid2.loc[i,'final_time'] = times[-1]  # storing the final timestamp as infalling timescale, can be optimised..
         x_t_full = au2arcsec(rt[0],dist)  # R.A. in arcsec
         y_t_full = au2arcsec(rt[1],dist)  # Decl. in arcsec
         vz_t_full = (vt[2]+svel)*1e3   # R.V. in m/s
@@ -482,6 +510,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             # Note: Sometimes the function extrapolates too (for smaller distances), not always a good one
             r_t,theta_t = spherical_coords(pctraj[0],pctraj[1])
             theta_ref_t = np.median(theta_t[r_t<np.percentile(r_t,r_percentile_thresh)])
+            # theta_ref_t = np.median(theta_t[r_t<r_thresh])  # Calculating new theta_ref but using same r_thresh as streamer, discarded because it returns nan for trajectories which don't come close enough
             theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_t))  # Calculating new theta_ref for traj, can avoid weirdnesses
         #     theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations, right thing to do?
             d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
@@ -573,7 +602,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         pivot_df.sort_index(axis=0,inplace=True,ascending=True)
         pivot_df.sort_index(axis=1,inplace=True,ascending=True)
         plt.imshow(pivot_df,extent = [pivot_df.columns[0]-vxy0_step/2,pivot_df.columns[-1]+vxy0_step/2
-                                      ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap)
+                                      ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap.reversed())
         plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 20)
         plt.ylabel('Initial radial distance [au]')
         plt.xlabel('Initial POS speed [km/s]')
@@ -589,7 +618,8 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     
     return(param_grid2,traj_m,[traj_comp_m,pcmeans,pcstds])
 
-def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_interp=None,fit2html=False,html_path=None):
+def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_interp=None
+                ,fit2html=False,html_path=None,fit2png=False,png_path=None,camera_vec=[1.5,1.5,1.5]):
 
     '''
     Code to visualize pointcloud, observational curve, theoretical curve for streamers in PPV space.
@@ -601,11 +631,15 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
     flux: N_elements long array containing flux values for observed streamer (used for colour)
     traj: 3xN1 array containing coordinates for a theoretical trajectory
     traj_interp: 3xN_elements array containing interpolated (or some extrapolated) coordinates for a theoretical trajectory
-    fit2html: Whether to save 3D fitting plot to .html file
-    html_path: Path to save 3D fitting plot to .html file        
+    fit2html: Whether to save 3D fitting plot to an interactive .html file    
+    html_path: Path to save 3D fitting plot to .html file    
+    fit2png: If True, save PPV diagram to a static .png file.
+    png_path: Path to save 3D fitting plot to .png file    
+    camera_vec: An array of length three to set camera position, see plotly.com/python/3d-camera-controls/ for more details
     '''
     
-    data2plt = []
+    data2plt = []  # All things to plot will be added to this list
+    
     if traj is not None:
         data2plt+=[go.Scatter3d(x=traj[0], y=traj[1], z=traj[2],mode='lines',name='Trajectory',
                        marker=dict(size=7,color='black',opacity=0.5)
@@ -621,14 +655,14 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
         if pcstds is None:
             pcstds = np.zeros(pcmeans.shape)
         data2plt+=[go.Scatter3d(x=pcmeans[0], y=pcmeans[1], z=pcmeans[2],mode='lines+markers',name='Means',
-                       error_x=go.scatter3d.ErrorX(array=pcstds[0]),
-                       error_y=go.scatter3d.ErrorY(array=pcstds[1]),
-                       error_z=go.scatter3d.ErrorZ(array=pcstds[2]),
+                       error_x=go.scatter3d.ErrorX(array=pcstds[0],width=2),
+                       error_y=go.scatter3d.ErrorY(array=pcstds[1],width=2),
+                       error_z=go.scatter3d.ErrorZ(array=pcstds[2],width=2),
                        marker=dict(size=9,color='red',opacity=1,symbol='square')
                    )]
     
     N_points = len(pccoords[0])
-    opacity = min(0.5,1500/N_points)  # Opacity should be higher if less data points
+    opacity = min(0.5,1000/N_points)  # Opacity should be higher if less data points
     if flux is None:
         color = 'blue'
         colorbar = dict()
@@ -641,7 +675,7 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
 
     layout = go.Layout(scene=dict(xaxis_title='R.A. offset [arcsec]',
                           yaxis_title='Decl. offset [arcsec]',
-                          zaxis_title='Radial vel. offset [m/s]',
+                          zaxis_title='Radial vel. [m/s]',
                           xaxis_range=[np.nanmin(pccoords[0]), np.nanmax(pccoords[0])],
                           yaxis_range=[np.nanmin(pccoords[1]), np.nanmax(pccoords[1])],
                           zaxis_range=[np.nanmin(pccoords[2]), np.nanmax(pccoords[2])],
@@ -651,12 +685,22 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
                )
 
     fig = go.Figure(data=data2plt, layout=layout)
+    
+    camera = dict(up=dict(x=0, y=0, z=1),center=dict(x=0, y=0, z=0),
+                  eye=dict(x=camera_vec[0], y=camera_vec[1], z=camera_vec[2]))
+    fig.update_layout(scene_camera=camera)  # Set viewing angle
     fig.update_layout(legend_orientation="h")
 
-    if fit2html:
+    if fit2html:  # To save plot as interactive html file
         if html_path == None:
             html_path = str(input("Path to store html 3D plot:"))
         fig.write_html(html_path, include_plotlyjs='cdn')
+    
+    if fit2png:  # To save plot as static png file, useful for publications
+        if png_path == None:
+            png_path = str(input("Path to store png plot:"))
+        fig.write_image(png_path,format='png',scale=3)
+        
     fig.show()
     
 def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
@@ -693,9 +737,10 @@ def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
                      ,min(xmin_p,xmax_p):max(xmin_p,xmax_p)]   # Selecting pixels
 #     print(min(ymin_p,ymax_p),max(ymin_p,ymax_p),min(xmin_p,xmax_p),max(xmin_p,xmax_p)) 
     subcube = original_cubevc.with_mask(original_cubevc > rms_thresh*original_cubevc.mad_std())  # Removing low flux values 
+    
     return(subcube)
 
-def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
+def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True,model_args={}):
 
     '''
     Code to remove random blobs of emission in the streamer subcube, using clustering algorithm
@@ -703,8 +748,9 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
     Args:
     scube: SpectralCube object (subcube) with streamer emission
     use_scaled_inds (Optional[bool]): Whether to use scaled indices for cluster identification
-    model (Optional): sklearn.cluster type model to be used for cluster identification
+    model (Optional[func]): sklearn.cluster type model to be used for cluster identification
     show_cluster (Optional[bool]): Whether to show 3D plot with main cluster marked
+    model_args (Optional[dict]): A dictionary with keys as names of model arguments and values as their desired values to be set when calling them. In other words, model function is called with '**model_args'.
     
     Returns:
     scube_cleaned: SpectralCube object with only the dominant cluster of emisssion (usually cleaned streamer emission)
@@ -729,8 +775,11 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
     
     if model is None:  # Default clustering model is OPTICS
         from sklearn.cluster import OPTICS
-        model = OPTICS()
-        
+        model = OPTICS() 
+
+    model = type(model)(**model_args) # Setting model parameters using model_args dictionary
+    print("Clustering model:",model)
+    
     # fit model and predict clusters
     yhat = model.fit_predict(pc_inds2)
     # retrieve unique clusters
@@ -756,14 +805,15 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True):
     # scube_cleaned.write(fits_fil[:-5]+'_streamer.fits',format = 'fits',overwrite = True)
     return(scube_cleaned)
     
-def parameter_errors(params, criteria='fit_fraction', threshold=0.90,min_resolution=True
+def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], criteria='fit_fraction', threshold=0.90,min_resolution=True
                       ,seperate_vxy=True,mean_replace=True):
     '''
     Code to estimate uncertainities of free parameters used for TIPSY fitting. 
     
     Args:
     params: Pandas DataFrame with all the parameter combinations used and corresponding deviations
-    criteria (Optional[str]): Quantity to be used to select good-enough fits for errors
+    pnames (Optional[str]): List of names (strings) of parameters for which to calculate representative values and errors
+    criteria (Optional[str]): Quantity to be used to select good-enough fits for errors, default is fitting fraction
     threshold (Optional[float]): Lower limiting value of 'criteria', to select good-enough fits for errors
     min_resolution (Optional[bool]): If True, replaces calculated errors less than the fitting resolution, with the fitting resolution
     seperate_vxy (Optional[bool]): If True, also provides errors for speed in R.A. and Decl. (vx0 and vy0), using error propogation
@@ -789,7 +839,7 @@ def parameter_errors(params, criteria='fit_fraction', threshold=0.90,min_resolut
 #     arrs[1] = paramsg[bools[2] & bools[0]][pnames[1]]
 #     arrs[2] = paramsg[bools[0] & bools[1]][pnames[2]]
 
-    pnames = ['vxy0','vxy_ang0','z0']  # (free) parameters to consider, could be a free parameter in future
+    pnames = ['vxy0','vxy_ang0','z0','final_time']  # (free) parameters to consider, could be an argument in future
     vals = pd.DataFrame(index=pnames,columns=['value','error'])
 
     for i in range(len(pnames)):

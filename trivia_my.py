@@ -42,7 +42,8 @@ def read_cube(path, clip=None, rmin=None, rmax=None, N=None, vmin=None, vmax=Non
     # Generate a radial mask
     r, t, z = cube.disk_coords()
     rmin = 0 if rmin is None else rmin
-    rmax = cube.FOV/3. if rmax is None else rmax
+    #     rmax = cube.FOV/3. if rmax is None else rmax
+    rmax = cube.FOV*3 if rmax is None else rmax  # Added by Aashish to be conservative
     mask_r = np.logical_and(r >= rmin, r <= rmax)
     mask_r = np.tile(mask_r, (cube.data.shape[0], 1, 1))
 
@@ -84,7 +85,7 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         xmin=None, xmax=None, ymin=None, ymax=None, vmin=None, vmax=None, dv=None,
         projection_x=False, projection_y=False, projection_z=True,
         show_colorbar=True, camera_eye_x=-1., camera_eye_y=-2., camera_eye_z=1.,
-        show_figure=False, write_pdf=True, write_html=True, write_csv=False,
+        show_figure=False, write_pdf=False, write_png=False, write_html=True, write_csv=False,
         vunit_per_s='m', source_ra_off=None, source_dec_off=None, source_vel=None, bool_traj = False, traj = None,
         path2=None, clip2=3., marker_color=None,marker_color2=None,out_filename=None,
         write_gif=False,gif_start_ang=90,gif_duration=3,gif_N_angs = 15,gif_loops=0):
@@ -133,6 +134,7 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         camera_eye_z (Optional[float]): The z component of the 'eye' camera vector.
         show_figure (Optional[bool]): If True, show PPV diagram.
         write_pdf (Optional[bool]): If True, write PPV diagram in a pdf file.
+        write_png (Optional[bool]): If True, write PPV diagram in a png file.
         write_html (Optional[bool]): If True, write PPV diagram in a html file.
         write_csv (Optional[bool]): If True, write the data to create the PPV diagram in a csv file.
         vunit_per_s (Optional[str]): Unit of spectral axis is assumed m(per second), could be changed to km. Added by Aashish.
@@ -170,12 +172,12 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
     xaxis_title = 'R.A. offset [arcsec]' if xaxis_title is None else xaxis_title
     yaxis_title = 'Decl. offset [arcsec]' if yaxis_title is None else yaxis_title
     zaxis_title = 'Radial velocity [km/s]' if zaxis_title is None else zaxis_title
-    xaxis_backgroundcolor = 'white' if xaxis_backgroundcolor is None else xaxis_backgroundcolor
-    xaxis_gridcolor = 'gray' if xaxis_gridcolor is None else xaxis_gridcolor
-    yaxis_backgroundcolor = 'white' if yaxis_backgroundcolor is None else yaxis_backgroundcolor
-    yaxis_gridcolor = 'gray' if yaxis_gridcolor is None else yaxis_gridcolor
-    zaxis_backgroundcolor = 'white' if zaxis_backgroundcolor is None else zaxis_backgroundcolor
-    zaxis_gridcolor = 'gray' if zaxis_gridcolor is None else zaxis_gridcolor
+#     xaxis_backgroundcolor = 'white' if xaxis_backgroundcolor is None else xaxis_backgroundcolor
+#     xaxis_gridcolor = 'gray' if xaxis_gridcolor is None else xaxis_gridcolor
+#     yaxis_backgroundcolor = 'white' if yaxis_backgroundcolor is None else yaxis_backgroundcolor
+#     yaxis_gridcolor = 'gray' if yaxis_gridcolor is None else yaxis_gridcolor
+#     zaxis_backgroundcolor = 'white' if zaxis_backgroundcolor is None else zaxis_backgroundcolor
+#     zaxis_gridcolor = 'gray' if zaxis_gridcolor is None else zaxis_gridcolor
     
     xmin, xmax, ymin, ymax = min(x),max(x),min(y),max(y) # added by Aashish
 #     xmin = cube.FOV/2.0 if xmin is None else xmin
@@ -199,14 +201,14 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
                                    marker=dict(size=marker_size, color=v[mask], colorscale=colorscale,
                                                cauto=False, cmin=cmin, cmax=cmax,
                                                opacity=min(1.0, alpha)),
-                                   hoverinfo=hoverinfo, 
+                                   hoverinfo=hoverinfo,name='Data', 
                                   )
                      ]
         else:
             data += [go.Scatter3d(x=x[mask], y=y[mask], z=v[mask], mode='markers',
                                marker=dict(size=marker_size, color=marker_color,
                                            opacity=min(1.0, alpha)),
-                               hoverinfo=hoverinfo, 
+                               hoverinfo=hoverinfo,name='Data', 
                               )
                  ]
     
@@ -221,14 +223,14 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
                                        marker=dict(size=marker_size, color=v2[mask], colorscale=colorscale,
                                                    cauto=False, cmin=cmin, cmax=cmax,
                                                    opacity=min(1.0, alpha)),
-                                       hoverinfo=hoverinfo, 
+                                       hoverinfo=hoverinfo,name='Data 2', 
                                       )
                          ]
             else:
                 data2 += [go.Scatter3d(x=x2[mask], y=y2[mask], z=v2[mask], mode='markers',
                                    marker=dict(size=marker_size, color=marker_color2,
                                                opacity=min(1.0, alpha)),
-                                   hoverinfo=hoverinfo, 
+                                   hoverinfo=hoverinfo,name='Data 2', 
                                   )
                      ]
 
@@ -241,7 +243,7 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         source += [go.Scatter3d(x=[source_ra_off], y=[source_dec_off], z=[source_vel],# mode='markers',
                                    marker=dict(size=10, color='black',
                                                opacity=0.9),
-                               hoverinfo=hoverinfo,)]
+                               hoverinfo=hoverinfo,name='Source',)]
 
         
     ## overplotting trajectories
@@ -249,15 +251,17 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
     if bool_traj:
         if traj != None:
             print("Showing Trajectory...")
-            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='lines', line=dict(color='black', width=8))]
-        else:
+            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='lines', line=dict(color='black', width=8))] 
+#            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='markers+lines', line=dict(color='black', width=8), marker=dict(color='black', size=3))]  # just "mode='lines'" would work as well, added markers to show projections
+        else:  # Some defualt profiles to plot... not sure what is the best default, can be deleted
             r = np.linspace(xmin, xmax, 51)
             v_sys = 7.5
             v_rot = 10
             v = v_sys + v_rot / np.sqrt(np.abs(r)) * np.sign(r)
             l_rot = []
             for theta in np.arange(-25,11,5):
-                traj_line += [go.Scatter3d(x=r*np.cos(np.radians(theta)), y=r*np.sin(np.radians(theta)), z=v, mode='lines', line=dict(color='black', width=5), name='Trajectory')]
+                traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='lines', line=dict(color='black', width=8))] 
+    #            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='markers+lines', line=dict(color='black', width=8), marker=dict(color='black', size=3))]  # just "mode='lines'" would work as well, added markers to show projections
         
 ## ----------------------- copied from jonathan's code
 
@@ -336,9 +340,10 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
 
     fig = go.Figure(data=data+data2+source+traj_line, layout=layout)
 
-    fig.update_traces(projection_x=dict(show=projection_x, opacity=1), 
-                      projection_y=dict(show=projection_y, opacity=1),
-                      projection_z=dict(show=projection_z, opacity=1),
+    proj_opacity = 0.9
+    fig.update_traces(projection_x=dict(show=projection_x, opacity=proj_opacity), 
+                      projection_y=dict(show=projection_y, opacity=proj_opacity),
+                      projection_z=dict(show=projection_z, opacity=proj_opacity),
                      )
 
     if show_colorbar:
@@ -366,12 +371,15 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
     ))
 
     out_filename = path.replace('.fits', '_ppv') if out_filename is None else out_filename
-
+    
     if show_figure:
         fig.show()
     
     if write_pdf:
-        fig.write_image(out_filename +'.pdf')
+        fig.write_image(out_filename +'.pdf',scale=3)
+    
+    if write_png:
+        fig.write_image(out_filename +'.png',scale=3)
     
     if write_html:
         fig.write_html(out_filename +'.html', include_plotlyjs=True)
