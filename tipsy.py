@@ -485,7 +485,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         vx0 = p['vxy0']*np.cos(p['vxy_ang0'])
         vy0 = p['vxy0']*np.sin(p['vxy_ang0'])
         rt,vt,rt_spherical,vt_spherical,times = falling_trajectory(p['x0'],p['y0'],p['z0'],vx0,vy0,p['vz0'],Ms_val
-                                                             ,ang_range = 1*np.pi,ang_step = np.pi/100,verbose=False)
+                                                             ,ang_range = 1.9*np.pi,ang_step = np.pi/100,verbose=False)
         if add_times:
             ftimes = times[np.argsort(np.abs(rt_spherical[0]))]  # Orders times on the basis of how close the particle is to the star, sort of final times we want
             ftime = ftimes[~np.isnan(ftimes)][0]  # Select the first non nan final time, nan times are usually for hyperbolic trajectories
@@ -502,7 +502,9 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         con1 = (pctraj_full[iaxis]>=min(pccoords[iaxis])) & (pctraj_full[iaxis]<=max(pccoords[iaxis]))
         iaxis = 1
         con2 = (pctraj_full[iaxis]>=min(pccoords[iaxis])) & (pctraj_full[iaxis]<=max(pccoords[iaxis]))
-        pctraj=pctraj_full[:,con1&con2]
+        con_pc = con1&con2
+        con_pc[np.argmax(~con_pc):]=False # This is to remove trajectory section which reappears within FOV, very important to make interpolation work well
+        pctraj=pctraj_full[:,con_pc]
 
 
         if pctraj.shape[1]>2:   #check if some traj. even left within the streamer field       
