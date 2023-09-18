@@ -8,6 +8,5 @@ The objective is to check:
 ## Desciption of main files
 tipsy.py : Main file with codes for generating trajectories and fitting them   
 trivia_my.py : Code for visualising PPV diagrams (modified version of https://github.com/jaehanbae/trivia)   
-tipsy_hltau.ipynb : Notebook showing example of fitting HL Tau using TIPSY 
-
-This work is still in progress, please use caution when interpreting results. 
+tipsy_scra_tutorial.ipynb : Notebook showing example of fitting streamer around SCrA using TIPSY 
+tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY 
