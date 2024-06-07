@@ -57,7 +57,7 @@ def read_cube(path, clip=None, rmin=None, rmax=None, N=None, vmin=None, vmax=Non
     i = np.around(cube.data[mask],decimals=3)
 
     # Take N random voxel.
-    N = np.int(np.max([v.size/1.0e5,1])) if N is None else N
+    N = int(np.max([v.size/1.0e5,1])) if N is None else N
     if N > 1:
         idx = np.arange(v.size) 
         np.random.shuffle(idx)

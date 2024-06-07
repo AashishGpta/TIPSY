@@ -14,12 +14,12 @@ from scipy.interpolate import interp1d
 import time
 
 def arcsec2au(a,dist):  
-    ''' take values in arcsec, return in au using distance (with units) '''
+    ''' take values in arcsec, return in au using distance (with units), redundant function to reduce anxiety '''
     a2 = (a*u.arcsec).to(u.radian).value
     return((a2*dist).to(u.au).value)
 
 def au2arcsec(a,dist):  
-    ''' take values in au, return in arcsec using distance (with units) '''
+    ''' take values in au, return in arcsec using distance (with units), redundant function to reduce anxiety '''
     a2 = ((a*u.au/dist.to(u.au))*u.radian)
     return(a2.to(u.arcsec).value)
 
@@ -266,7 +266,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
                  ,vxy_ang0=None,vxy_ang0_span=None,vxy_ang0_step=0.0872
                  ,z0_lim=None,z0_step=None,vxy0_lim=None,vxy0_step=None
                  ,show_dist_plots=True,show_vel_ang=True,show_fit_cost=True,show_fit_3d=True,fit2html=False,html_path=None
-                 ,add_times=True, verbose=True):
+                 ,add_times=True, theta_ref_trajectory = False, verbose=True):
     '''
     Code to fit infalling trajectories in PPV space to streamers.
     
@@ -292,6 +292,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     html_path (Optional[str]): Path to save 3D fitting plot to .html file
     add_times (Optional[bool]): Whether to add final times of trajectories (infalling time scales) to
     the param_grid2 (dataframe with all initial parameter combinations, see output)
+    theta_ref_trajectory (Optional[bool]): Whether to compute a new theta (polar angle) reference for each theoretical trajectory. It can affect dist. metric values of trajectories and thus, interpolation. 
     verbose (Optional[bool]): Whether to display miscellaneous text outputs 
     
     Returns:
@@ -310,20 +311,21 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
 
     pccoords = np.array(streamer_cube.wcs.pixel_to_world_values(np.array([pcx,pcy,pcz]).T)).T   # Indices to FITS coords
     pccoords[0] = (pccoords[0]-streamer_cube.header['CRVAL1'])*60*60   # Coords in units of PPV diagram, R.A.
+    pccoords[0] = pccoords[0]*np.cos(streamer_cube.header['CRVAL2']*np.pi/180) # cos(dec) correction required to get physical offsets in R.A. direction
     pccoords[1] = (pccoords[1]-streamer_cube.header['CRVAL2'])*60*60   # Decl.
-    pccoords[2] = (pccoords[2]-streamer_cube.header['CRVAL3'])         # Radial Vel.
+    pccoords[2] = (pccoords[2]-streamer_cube.header['CRVAL3'])         # L.O.S. velocity
 
     ## Distance metric (independent parameter)
     pcd_r,pcd_theta = spherical_coords(pccoords[0],pccoords[1])
     r_percentile_thresh = 100/N_elements  # No. of points to consider for ref. angle
-    r_thresh = np.percentile(pcd_r,r_percentile_thresh)
-    theta_ref = np.median(pcd_theta[pcd_r<r_thresh])
+    r_thresh = np.percentile(pcd_r,r_percentile_thresh)  # threshold radial dist. to select close enough points
+    theta_ref = np.median(pcd_theta[pcd_r<r_thresh])  # Median theta angle for close enough points
     # now we are interested in deviation of pcd_theta wrt theta_ref and this is not straightforward
     # we do not want deviation for angles close to theta_ref to be close to +-360
     # one way around is to have cyclic deviation upto 180, this is implemented below
     # IMP: this method will fail if the deviations >180 needs to be accounted in distance, i.e., if spirals are very closely wound
     pcd_theta2 = np.pi-np.abs(np.pi-np.abs(pcd_theta-theta_ref))
-    pcd = pcd_r*np.sqrt(1+(theta_weight*pcd_theta2)**2)
+    pcd = pcd_r*np.sqrt(1+(theta_weight*pcd_theta2)**2)  # Final dist. metric values
 
     
     if show_dist_plots:  # Show three plots depicting calculation of the dist. metric
@@ -354,7 +356,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
 
         plt.show()
 
-    b_per = np.linspace(0,100,N_elements+1)  # Array of percetile values to break the array into
+    b_per = np.linspace(0,100,N_elements+1)  # Array of percentile values to break the array into
     pars = np.array([np.percentile(pcd,per) for per in b_per])   # pcd values at percentile values
     if verbose:
         print("Partition boundaries for projected distances:",np.round(pars,3))
@@ -364,26 +366,28 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     pcstds = np.zeros((3,N_elements))  # intialize "empty" array
     for i in range(N_elements):
         dinds = (pcd>pars[i]) & (pcd<=pars[i+1])  # Identify points in given distance range
-        pcmeans[:,i] = np.average(pccoords.T[dinds],axis=0,weights=flux[dinds])  # Add means    
-        pcstds[:,i] = np.sqrt(np.average((pccoords.T[dinds]-pcmeans[:,i])**2,axis=0,weights=flux[dinds])) # Add standard deviations
+        pcmeans[:,i] = np.average(pccoords.T[dinds],axis=0,weights=flux[dinds])  # Add intensity-weighted means    
+        pcstds[:,i] = np.sqrt(np.average((pccoords.T[dinds]-pcmeans[:,i])**2,axis=0,weights=flux[dinds])) # Add intensity-weighted standard deviations
     r_means,theta_means = spherical_coords(pcmeans[0],pcmeans[1])
-    theta2_means = np.pi-np.abs(np.pi-np.abs(theta_means-theta_ref))  # Using same theta_ref as observations, right thing to do?
-    d_means = r_means*np.sqrt(1+(theta_weight*theta2_means)**2)
+    # theta_ref_means = theta_means[np.argmin(r_means)]
+    # theta2_means = np.pi-np.abs(np.pi-np.abs(theta_means-theta_ref_means))  # Computing new theta_ref using means, right thing to do?
+    theta2_means = np.pi-np.abs(np.pi-np.abs(theta_means-theta_ref))  # Using same theta_ref as observations, right thing to do? Probaly better to have consistent ref. everywhere.
+    d_means = r_means*np.sqrt(1+(theta_weight*theta2_means)**2)  # dist. metric for mean points, to be used for final fitting
 
-    ## Initial distance (arcseec to au)
+    ## Initial distance (arcseec to au). Note: errors are not accounted here
     dist = dist*u.pc # just for consistency with other codes
     x0_as = pcmeans[0][-1] #*u.arcsec
     y0_as = pcmeans[1][-1] #*u.arcsec
     x0 = arcsec2au(x0_as,dist)
     y0 = arcsec2au(y0_as,dist) #(x0_as.to(u.radian).value*dist).to(u.au).value
-    ## Initial velocity (km/s)
+    ## Initial L.O.S. velocity (km/s)
     vz0 = pcmeans[2][-1]*1e-3-svel
     print("Initial x0, y0 and vz0:",x0,y0,vz0)
 
 
     ### Setting grid for free parameters
     ## Initial offset in radial distance
-    if z0_step == None:
+    if z0_step == None:  # By defualt use beam size as z0 resolution
         try:
             bsize = streamer_cube.header['BMAJ']   # Beam size (Major axis)
         except KeyError:
@@ -392,9 +396,9 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         bsize_au = arcsec2au(bsize*60*60,dist)  # Beam size in au
         z0_step = np.abs(bsize_au)
     if z0_lim == None:
-        dev = (np.abs(x0)+np.abs(y0))/2   # Typical deviation in au
-        dev_z = (-1*np.sign(vz0))*dev   # Expected deviation in z (au), (NOTE: vz0*timescale could also be used)
-        d_dev_z = max(10*z0_step,1500)  #Range of values to test
+        dev = (np.abs(x0)+np.abs(y0))/2   # Typical vel. deviation in R.A./Dec.
+        dev_z = (-1*np.sign(vz0))*dev   # Expected vel. deviation in z
+        d_dev_z = max(20*z0_step,3000)  # Range of values to test
         z0_min=dev_z-d_dev_z
         z0_max=dev_z+d_dev_z
     else:
@@ -405,12 +409,12 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         print("Min., max. and step for initial radial sep. (z0):",z0_min,z0_max,z0_step)
 
     ## Initial offset in P.O.S speed
-    if vxy0_step == None:
+    if vxy0_step == None:  # By defualt use spectral resolution as vxy0 resolution
         cwidth = streamer_cube.header['CDELT3']
         vxy0_step = np.abs(cwidth)
     if vxy0_lim == None:
-        dev_vxy = np.abs(vz0)*(2**0.5)    #Rough estimate of vxy0 (NOTE: dev/timescale could also be used)
-        d_dev_vxy = max(10*vxy0_step,2)      # No good reason to choose 10 or 5 :P
+        dev_vxy = np.abs(vz0)*(2**0.5)    #Rough estimate of vxy0 
+        d_dev_vxy = max(20*vxy0_step,4)      # No good reason to choose 20 or 4 :P
         vxy0_min=max(0,dev_vxy-d_dev_vxy)  #vxy0_min always should be positive
         vxy0_max=dev_vxy+d_dev_vxy
     else:
@@ -424,7 +428,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     if vxy_ang0 == None:
         dx = pcmeans[0][-2]-pcmeans[0][-1]    # Initial change in R.A.
         dy = pcmeans[1][-2]-pcmeans[1][-1]    # Initial change in Decl.
-        vxy_ang0_est = np.arctan2(dy,dx) #Angle between total x-y velocity and velocity in x (R.A.)
+        vxy_ang0_est = np.arctan2(dy,dx) #Angle between total x-y velocity and velocity in x (R.A.), main estimate of vxy0_ang
         if vxy_ang0_span == None:    # If span for intial orientation angles is not provided, estimate it using error in estimated angle
             e_x = pcstds[0][-2]  # Error in dx
             e_y = pcstds[1][-2]  # Error in dy
@@ -439,10 +443,10 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         vxy_ang0_range = np.array([vxy_ang0])
     if verbose:
         print("Min., max. and step for initial directions in P.O.S. (vxy_ang0):",vxy_ang0_range[0],vxy_ang0_range[-1],vxy_ang0_step)
-    if show_vel_ang:
+    if show_vel_ang: # To visualise vxy0_ang values on projected streamer
         i1 = 0
         i2 = 1
-        labels = ['R.A. offset [arcsec]','Decl. offset [arcsec]','Radial Vel. offset']  # Just put an array to make it easier in future
+        labels = ['R.A. offset [arcsec]','Decl. offset [arcsec]','L.O.S. Vel. offset']  # Just put an array to make it easier in future
         plt.plot(pccoords[i1],pccoords[i2],'.',alpha = 0.1,label = 'Observations',zorder = 0)
         plt.errorbar(x = pcmeans[i1],y = pcmeans[i2],xerr = pcstds[i1],yerr = pcstds[i2]
                      ,fmt = 's-',alpha = 1, label = 'Means')
@@ -478,14 +482,14 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     for i in range(N_params):
 
         if i==0:
-            st = time.time()   # To get a time estimate
+            st = time.time()   # To get a time estimate for this loop
 
         # reformatting initial parameters and computing trajectories
         p = param_grid2.loc[i]
         vx0 = p['vxy0']*np.cos(p['vxy_ang0'])
         vy0 = p['vxy0']*np.sin(p['vxy_ang0'])
         rt,vt,rt_spherical,vt_spherical,times = falling_trajectory(p['x0'],p['y0'],p['z0'],vx0,vy0,p['vz0'],Ms_val
-                                                             ,ang_range = 1.9*np.pi,ang_step = np.pi/100,verbose=False)
+                                                             ,ang_range = 1.9*np.pi,ang_step = np.pi/200,verbose=False)
         if add_times:
             ftimes = times[np.argsort(np.abs(rt_spherical[0]))]  # Orders times on the basis of how close the particle is to the star, sort of final times we want
             ftime = ftimes[~np.isnan(ftimes)][0]  # Select the first non nan final time, nan times are usually for hyperbolic trajectories
@@ -494,7 +498,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         x_t_full = au2arcsec(rt[0],dist)  # R.A. in arcsec
         y_t_full = au2arcsec(rt[1],dist)  # Decl. in arcsec
         vz_t_full = (vt[2]+svel)*1e3   # R.V. in m/s
-        pctraj_full = np.array([x_t_full,y_t_full,vz_t_full]) # trajectory for full orbit
+        pctraj_full = np.array([x_t_full,y_t_full,vz_t_full]) # trajectory for full orbit in observational coordinates
 
         # Selecting portion of trajectory within the area of streamer
         # Note: I did not put a condition on vel. because it is not used in dist. metric and dynamics may change
@@ -511,10 +515,15 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             # Interpolating trajectory to same "distances" (used as independent param.) as means
             # Note: Sometimes the function extrapolates too (for smaller distances), not always a good one
             r_t,theta_t = spherical_coords(pctraj[0],pctraj[1])
-            theta_ref_t = np.median(theta_t[r_t<np.percentile(r_t,r_percentile_thresh)])
+            if theta_ref_trajectory: # Calculating new theta_ref for each traj, can be used to avoid weirdnesses
+                theta_ref_t = np.median(theta_t[r_t<np.percentile(r_t,r_percentile_thresh)])
+                theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_t))  
+            else: 
+                # Using same theta_ref as observations by default. It is probably better to have a consistent reference everywhere and keep it simple. 
+                # Overall also seems better than individual ref. for each trajectory (and also ref. from means) but still may not always be the the best solution. 
+                theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations
             # theta_ref_t = np.median(theta_t[r_t<r_thresh])  # Calculating new theta_ref but using same r_thresh as streamer, discarded because it returns nan for trajectories which don't come close enough
-            theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_t))  # Calculating new theta_ref for traj, can avoid weirdnesses
-        #     theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations, right thing to do?
+            # theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_means))  # Using same theta_ref as means, right thing to do?
             d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
             p = np.argsort(d_t)
         #         pdeg = N_elements-1#6#(N_elements//2)
@@ -538,13 +547,15 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         else:
             traj_comp = np.full(pcmeans.shape,np.nan)  # Just nan array of same shape
 
-        res = pcmeans-traj_comp
+        ## For goodness-of-fit estimates
+        res = pcmeans-traj_comp  
         res_norm_sq = (res/pcstds)**2
-        fit_frac = np.sum((res_norm_sq)<1)/3/N_elements
+        fit_frac = np.sum((res_norm_sq)<1)/3/N_elements  # Fraction of observational value consistent with the trajectory
         chi2 = np.sum(res_norm_sq)
         param_grid2.loc[i,'deviation'] = chi2  # In principle, deviation doesn't have to be chi2, maybe a median dev. be better?
         param_grid2.loc[i,'fit_fraction'] = fit_frac
-        if param_grid2.loc[i,'fit_fraction']>max_frac:
+        # To store the best trajectory on the fly, maybe outdated now because I store everything
+        if param_grid2.loc[i,'fit_fraction']>max_frac:   
             i_m=i
             max_frac=param_grid2.loc[i,'fit_fraction']
             min_dev=param_grid2.loc[i,'deviation']
@@ -621,7 +632,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     return(param_grid2,traj_m,[traj_comp_m,pcmeans,pcstds])
 
 def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_interp=None
-                ,fit2html=False,html_path=None,fit2png=False,png_path=None,camera_vec=[1.5,1.5,1.5]):
+                ,fit2html=False,html_path=None,fit2png=False,png_path=None,camera_vec=[1.5,1.5,1.5],dtick=None):
 
     '''
     Code to visualize pointcloud, observational curve, theoretical curve for streamers in PPV space.
@@ -638,13 +649,14 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
     fit2png: If True, save PPV diagram to a static .png file.
     png_path: Path to save 3D fitting plot to .png file    
     camera_vec: An array of length three to set camera position, see plotly.com/python/3d-camera-controls/ for more details
+    dtick: Spacing between ticks on x and y axes, in axes units. Added for consistent figures.
     '''
     
     data2plt = []  # All things to plot will be added to this list
     
     if traj is not None:
         data2plt+=[go.Scatter3d(x=traj[0], y=traj[1], z=traj[2],mode='lines',name='Trajectory',
-                       marker=dict(size=7,color='black',opacity=0.5)
+                       marker=dict(size=7,color='black',opacity=1)
                        )]
 
     if traj_interp is not None:
@@ -652,7 +664,6 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
                        marker=dict(size=7,color='black',opacity=1)
                        )]
         
-    
     if pcmeans is not None:
         if pcstds is None:
             pcstds = np.zeros(pcmeans.shape)
@@ -660,7 +671,7 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
                        error_x=go.scatter3d.ErrorX(array=pcstds[0],width=2),
                        error_y=go.scatter3d.ErrorY(array=pcstds[1],width=2),
                        error_z=go.scatter3d.ErrorZ(array=pcstds[2],width=2),
-                       marker=dict(size=9,color='red',opacity=1,symbol='square')
+                       marker=dict(size=9,color='red',opacity=0.8,symbol='square')
                    )]
     
     N_points = len(pccoords[0])
@@ -677,7 +688,7 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
 
     layout = go.Layout(scene=dict(xaxis_title='R.A. offset [arcsec]',
                           yaxis_title='Decl. offset [arcsec]',
-                          zaxis_title='Radial vel. [m/s]',
+                          zaxis_title='L.O.S. velocity [m/s]',
                           xaxis_range=[np.nanmin(pccoords[0]), np.nanmax(pccoords[0])],
                           yaxis_range=[np.nanmin(pccoords[1]), np.nanmax(pccoords[1])],
                           zaxis_range=[np.nanmin(pccoords[2]), np.nanmax(pccoords[2])],
@@ -692,6 +703,8 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
                   eye=dict(x=camera_vec[0], y=camera_vec[1], z=camera_vec[2]))
     fig.update_layout(scene_camera=camera)  # Set viewing angle
     fig.update_layout(legend_orientation="h")
+    if dtick:
+        fig.update_layout(scene = dict(xaxis = dict(dtick =dtick),yaxis = dict(dtick = dtick)))
 
     if fit2html:  # To save plot as interactive html file
         if html_path == None:
@@ -716,8 +729,8 @@ def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
     xmax: Max. R.A. offset in arcsec
     ymin: Min. Decl. offset in arcsec
     ymax: Max. Decl. offset in arcsec
-    vmin: Min. radial vel. in same units as spectral axis of cube
-    vmax: Max. radial vel. in same units as spectral axis of cube
+    vmin: Min. L.O.S. velocity in same units as spectral axis of cube
+    vmax: Max. L.O.S. velocity in same units as spectral axis of cube
     rms_thresh: This will be multiplied to the median-absolute-deviation of the subcube fluxes to remove low flux pixels
     
     Returns:
