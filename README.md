@@ -5,11 +5,17 @@ The objective of TIPSY is to check:
 1. If these structures are infalling streamers?
 2. If yes, then how well can we characterise them?
 
-## Desciption of main files
-tipsy.py : Main file with codes for generating trajectories and fitting them   
-trivia_my.py : Code for visualising PPV diagrams (modified version of https://github.com/jaehanbae/trivia)   
-tipsy_scra_tutorial.ipynb : Notebook showing example of fitting streamer around SCrA using TIPSY 
-tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY 
+## Desciption of main files:
+- tipsy.py : Main file with codes for generating trajectories and fitting them   
+- trivia_my.py : Code for visualising PPV diagrams (modified version of https://github.com/jaehanbae/trivia)   
+- tipsy_scra_tutorial.ipynb : Notebook showing example of fitting streamer around SCrA using TIPSY 
+- tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY 
 
-## Known issues
+## Some known issues:
+- TIPSY assumes that the protostar (center of gravity) is in the spatial center of the cube.
+- Distance units other than parsecs may not work properly.
+- Fitting results can be quite sensitive to the given systemic velocity of the source.
+Please inform us if you find some other issues. We will try to address them in future updates. 
+
+
 
