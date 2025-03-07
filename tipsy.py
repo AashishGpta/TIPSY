@@ -273,7 +273,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     Args:
     streamer_cube: SpectralCube object with only streamer emission
     Ms_val ([float]): Mass of central object [solar mass]
-    dist ([float]): Distance to the source [parsecs]
+    dist ([float]): Distance to the source [any distance units]
     svel ([float]): Systematic radial velocity of the source [km/s]
     N_elements (Optional[int]): No. of elements to use for fitting
     theta_weight (Optional[int]): Weightage of projected angles along the streamer for distance metric, 0 means just using projected distances
@@ -375,7 +375,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     d_means = r_means*np.sqrt(1+(theta_weight*theta2_means)**2)  # dist. metric for mean points, to be used for final fitting
 
     ## Initial distance (arcseec to au). Note: errors are not accounted here
-    dist = dist*u.pc # just for consistency with other codes
+    dist = (dist).to(u.pc) # can handle any distance units
     x0_as = pcmeans[0][-1] #*u.arcsec
     y0_as = pcmeans[1][-1] #*u.arcsec
     x0 = arcsec2au(x0_as,dist)
