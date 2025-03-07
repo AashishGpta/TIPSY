@@ -13,7 +13,6 @@ The objective of TIPSY is to check:
 
 ## Some known issues:
 - TIPSY assumes that the protostar (center of gravity) is in the spatial center of the cube.
-- Distance units other than parsecs may not work properly.
 - Fitting results can be quite sensitive to the given systemic velocity of the source.
   
 _Please inform us if you find some other issues. We will try to address them in future updates._ 
