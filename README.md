@@ -10,6 +10,7 @@ The objective of TIPSY is to check:
 - trivia_my.py : Code for visualising PPV diagrams, modified version of [TRIVIA](https://github.com/jaehanbae/trivia)   
 - tipsy_scra_tutorial.ipynb : Notebook showing example of fitting streamer around SCrA using TIPSY 
 - tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY 
+The fits files for S CrA and HL Tau tutorials can be found [here](https://virginia.box.com/s/4xwhmdh5gvsapybt5jurs5ey22i4kiuq).
 
 ## Some known issues:
 - TIPSY assumes that the protostar (center of gravity) is in the spatial center of the cube. This can be handled by centering the cube before loading it in TIPSY. 
