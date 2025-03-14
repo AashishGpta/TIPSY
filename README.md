@@ -9,7 +9,8 @@ The objective of TIPSY is to check:
 - tipsy.py : Main file with codes for generating trajectories and fitting them   
 - trivia_my.py : Code for visualising PPV diagrams, modified version of [TRIVIA](https://github.com/jaehanbae/trivia)   
 - tipsy_scra_tutorial.ipynb : Notebook showing example of fitting streamer around SCrA using TIPSY 
-- tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY 
+- tipsy_hltau_tutorial.ipynb : Notebook showing example of fitting streamer around HL Tau using TIPSY
+   
 The fits files for S CrA and HL Tau tutorials can be found [here](https://virginia.box.com/s/4xwhmdh5gvsapybt5jurs5ey22i4kiuq).
 
 ## Some known issues:
