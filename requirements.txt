@@ -1,0 +1,12 @@
+astropy==5.3.4
+cmasher==1.6.3
+gofish==1.4.2.post1
+matplotlib==3.8.0
+numpy
+pandas==2.2.3
+Pillow==11.1.0
+plotly==5.9.0
+rebound==3.22.0
+scikit_learn==1.2.2
+scipy==1.10.1
+uncertainties==3.1.6
