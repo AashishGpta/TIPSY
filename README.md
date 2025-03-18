@@ -14,11 +14,12 @@ The objective of TIPSY is to check:
 The fits files for S CrA and HL Tau tutorials can be found [here](https://virginia.box.com/s/4xwhmdh5gvsapybt5jurs5ey22i4kiuq).
 
 ## Recommended setup:
+- Clone the TIPSY repository: `git clone https://github.com/AashishGpta/TIPSY.git`
 - Create a Python environment for TIPSY so that it does not interfere with existing installations: `conda create -n tipsyenv python=3.9`
 - Activate the new environment: `conda activate tipsyenv`
 - Install all the required modules: `pip install -r requirements.txt`
 
-After setting up, try running the tutorial notebooks using Jupyter. Some additional modules may need to be installed along the way, but those should not be complicated.
+After setting up, try running the tutorial notebooks within this environment using Jupyter. Some additional modules may need to be installed along the way, but those should not be complicated.
 
 ## Some known issues:
 - TIPSY assumes that the protostar (center of gravity) is in the spatial center of the cube. This can be handled by centering the cube before loading it in TIPSY. 
