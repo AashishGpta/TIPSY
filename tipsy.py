@@ -273,7 +273,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     Args:
     streamer_cube: SpectralCube object with only streamer emission
     Ms_val ([float]): Mass of central object [solar mass]
-    dist ([float]): Distance to the source [any distance units]
+    dist ([float*unit]): Distance to the source multiplied by its unit as an astropy.units object
     svel ([float]): Systematic radial velocity of the source [km/s]
     N_elements (Optional[int]): No. of elements to use for fitting
     theta_weight (Optional[int]): Weightage of projected angles along the streamer for distance metric, 0 means just using projected distances
