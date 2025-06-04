@@ -354,6 +354,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         ax.set_ylabel('Decl. offset [arcsec]')
         ax.set(aspect=1./ax.get_data_ratio())
 
+        plt.suptitle("Estimation of distance metric")
         plt.show()
 
     b_per = np.linspace(0,100,N_elements+1)  # Array of percentile values to break the array into
@@ -384,7 +385,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     vz0 = pcmeans[2][-1]*1e-3-svel
     print("Initial x0, y0 and vz0:",x0,y0,vz0)
 
-
+    print("Now for the free parameters:")
     ### Setting grid for free parameters
     ## Initial offset in radial distance
     if z0_step == None:  # By defualt use beam size as z0 resolution
@@ -459,6 +460,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
                        angles='xy',scale_units = 'dots',scale=0.01,zorder=5,alpha=0.3)  # Maybe something is wrong here, because spacing sometimes look unequal..
         plt.xlabel(labels[i1])
         plt.ylabel(labels[i2])
+        plt.title("Discretization of streamer and possible initial orientations")
         plt.legend()
         plt.show()
 
@@ -526,17 +528,6 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             # theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_means))  # Using same theta_ref as means, right thing to do?
             d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
             p = np.argsort(d_t)
-        #         pdeg = N_elements-1#6#(N_elements//2)
-        #         coeffs = np.polyfit(d_t[p],pctraj[0][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-        #         spx = np.poly1d(coeffs)
-        #         coeffs = np.polyfit(d_t[p],pctraj[1][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-        #         spy = np.poly1d(coeffs)
-        #         coeffs = np.polyfit(d_t[p],pctraj[2][p], deg=pdeg)  # Fit quadratic function to R.A./Decl.
-        #         spz = np.poly1d(coeffs)
-        #     spx = CubicSpline(d_t[p], pctraj[0][p],bc_type='natural')#, s=s)
-        #     spy = CubicSpline(d_t[p], pctraj[1][p],bc_type='natural')#, s=s)
-        #     spz = CubicSpline(d_t[p], pctraj[2][p],bc_type='natural')#, s=s)
-        #     kspline = 5
         #     spx = UnivariateSpline(d_t[p], pctraj[0][p],k=kspline)#, s=s)
         #     spy = UnivariateSpline(d_t[p], pctraj[1][p],k=kspline)#, s=s)
         #     spz = UnivariateSpline(d_t[p], pctraj[2][p],k=kspline)#, s=s)
@@ -559,7 +550,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
             i_m=i
             max_frac=param_grid2.loc[i,'fit_fraction']
             min_dev=param_grid2.loc[i,'deviation']
-            traj_m = [rt,vt,rt_spherical,vt_spherical]
+            traj_m = [rt,vt,rt_spherical,vt_spherical] # traj_m, to be returned, as positions (rt) and velocities (vt) in both cartesian and spherical coordinates
             traj_comp_m = traj_comp
         elif param_grid2.loc[i,'fit_fraction']==max_frac:
             if param_grid2.loc[i,'deviation']<min_dev:
@@ -586,9 +577,11 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         ang_means = param_grid2.groupby('vxy_ang0').mean()
         ang_stds = param_grid2.groupby('vxy_ang0').std()
         plt.errorbar(ang_means.index*180/np.pi,ang_means.fit_fraction,yerr=ang_stds.fit_fraction,fmt='o')
-        plt.plot(param_m['vxy_ang0']*180/np.pi,param_m.fit_fraction,'rx',markersize=15)
-        plt.xlabel('Orientation of initial P.O.S. velocity [degree]')
+        plt.plot(param_m['vxy_ang0']*180/np.pi,param_m.fit_fraction,'rx',markersize=15, label='Best fit')
+        plt.xlabel('Orientation of initial P.O.S. velocity (vxy_ang0) [degree]')
         plt.ylabel('Mean fitting fraction')
+        plt.legend()
+        # plt.title("Goodness of fit as a function of initial direction")
         plt.show()
 
         grid2display = param_grid2[param_grid2['vxy_ang0']==param_m['vxy_ang0']]
@@ -602,10 +595,12 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         pivot_df.sort_index(axis=1,inplace=True,ascending=True)
         plt.imshow(pivot_df,extent = [pivot_df.columns[0]-vxy0_step/2,pivot_df.columns[-1]+vxy0_step/2
                                       ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap)
-        plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 20)
-        plt.ylabel('Initial radial distance [au]')
-        plt.xlabel('Initial POS speed [km/s]')
+        plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 15, label='Best fit')
+        plt.ylabel('Initial radial distance (z0) [au]')
+        plt.xlabel('Initial POS speed (vxy0) [km/s]')
+        plt.legend()
         plt.colorbar(label='Fitting fraction')
+        # plt.title("Goodness of fit as a function of initial direction")
         plt.show()
 
         ## Distribution of deviation (loglog scaled) wrt z0 and vxy0
@@ -616,9 +611,10 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         pivot_df.sort_index(axis=1,inplace=True,ascending=True)
         plt.imshow(pivot_df,extent = [pivot_df.columns[0]-vxy0_step/2,pivot_df.columns[-1]+vxy0_step/2
                                       ,pivot_df.index[-1]+z0_step/2,pivot_df.index[0]-z0_step/2],aspect='auto',cmap=cmap.reversed())
-        plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 20)
-        plt.ylabel('Initial radial distance [au]')
-        plt.xlabel('Initial POS speed [km/s]')
+        plt.plot(param_m['vxy0'],param_m['z0'],'rx',markersize = 15, label='Best fit')
+        plt.ylabel('Initial radial distance (z0) [au]')
+        plt.xlabel('Initial POS speed (vxy0) [km/s]')
+        plt.legend()
         plt.colorbar(label='log(log(deviation))')
         plt.show()
         
