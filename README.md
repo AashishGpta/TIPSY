@@ -25,7 +25,7 @@ After setting up, try running the tutorial notebooks within this environment usi
 - TIPSY assumes that the protostar (center of gravity) is in the spatial center of the cube. This can be handled by centering the cube before loading it in TIPSY. 
 - Fitting results can be quite sensitive to the given systemic velocity of the source. Therefore, some care should be taken when estimating the systemic velocity (e.g., fitting gaussian to just the disk spectra from a non-absropbed tracer). 
   
-_Please inform us if you find some other issues. We will try to address them in future updates._ 
+_Please inform me if you find some other issues. I will try to address them in future updates._ 
 
 
 
