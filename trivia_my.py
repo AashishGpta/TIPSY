@@ -86,7 +86,9 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         projection_x=False, projection_y=False, projection_z=True,
         show_colorbar=True, camera_eye_x=-1., camera_eye_y=-2., camera_eye_z=1.,
         show_figure=False, write_pdf=False, write_png=False, write_html=True, write_csv=False,
-        vunit_per_s='m', source_ra_off=None, source_dec_off=None, source_vel=None, bool_traj = False, traj = None,
+        vunit_per_s='m', source_ra_off=None, source_dec_off=None, source_vel=None,
+        bool_traj=False, traj=None, traj_color='black', traj_opacity=1, traj_width=10,
+        bool_traj_err=False, traj_err=None, traj_err_color='grey', traj_err_opacity=0.2, traj_err_width=1,
         path2=None, clip2=3., marker_color=None,marker_color2=None,out_filename=None,
         write_gif=False,gif_start_ang=90,gif_duration=3,gif_N_angs = 15,gif_loops=0):
     """
@@ -141,8 +143,16 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
         source_ra_off (Optional[float]): R.A. offset (arcsec) of a YSO wrt cube centre for a special marker. Added by Aashish.
         source_dec_off (Optional[float]): Decl. offset (arcsec) of a YSO wrt cube centre for a special marker. Added by Aashish.
         source_vel (Optional[float]): Radial velocity of a YSO for a special marker. Added by Aashish.
-        bool_traj (Optional[bool]): If True, display trajectory profile(s).
-        traj (Optional[array]): Array (list of lists, 2D numpy array, etc.) of shape 3xn which gives trajectory of particle in R.A., Decl., and R.V. domain.
+        bool_traj (Optional[bool]): If True, display a single trajectory profile.
+        traj (Optional[array]): Array (list of lists, 2D numpy array, etc.) of shape 3xn giving the trajectory of a particle in R.A., Decl., and R.V. domain.
+        traj_color (Optional[str]): Color of the trajectory line (default: 'black').
+        traj_opacity (Optional[float]): Opacity of the trajectory line (default: 1).
+        traj_width (Optional[int]): Width of the trajectory line (default: 10).
+        bool_traj_err (Optional[bool]): If True, display multiple trajectory profiles, useful for showing uncertainties.
+        traj_err (Optional[array]): Array (list of lists, 2D numpy array, etc.) of shape 3xmxn giving alternative trajectories of a particle in R.A., Decl., and R.V. domain. 'm' is the number of such trajectories.
+        traj_err_color (Optional[str]): Color of the error/uncertainty trajectories (default: 'grey').
+        traj_err_opacity (Optional[float]): Opacity of the error/uncertainty trajectories (default: 0.2).
+        traj_err_width (Optional[int]): Width of the error/uncertainty trajectories (default: 1).
         path2 (Optional[str]): Path to secondary fits file
         clip2 (Optional[float]): Clip the second cube having cube2.data > clip * cube2.rms
         marker_color (Optional[str]): Color for all the cube data markers, overrides cmap
@@ -246,21 +256,37 @@ def make_ppv(path, clip=3., rmin=None, rmax=None, N=None, cmin=None, cmax=None, 
                                hoverinfo=hoverinfo,name='Source',)]
 
         
-    ## overplotting trajectories
+    # Overplotting trajectories
     traj_line = []
     if bool_traj:
-        if traj != None:
+        if traj is not None:
             print("Showing Trajectory...")
-            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='lines', line=dict(color='black', width=8))] 
-#            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='markers+lines', line=dict(color='black', width=8), marker=dict(color='black', size=3))]  # just "mode='lines'" would work as well, added markers to show projections
-        else:  # Some defualt profiles to plot... not sure what is the best default, can be deleted
-            r = np.linspace(xmin, xmax, 51)
-            v_sys = 7.5
-            v_rot = 10
-            v = v_sys + v_rot / np.sqrt(np.abs(r)) * np.sign(r)
-            l_rot = []
-            for theta in np.arange(-25,11,5):
-                traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='lines', line=dict(color='black', width=8))] 
+            traj_line += [
+                go.Scatter3d(
+                    x=traj[0], y=traj[1], z=traj[2], mode='lines',
+                    line=dict(color=traj_color, width=traj_width),
+                    opacity=traj_opacity
+                )
+            ]
+        else:
+            print("Trajectory not defined but bool_traj is True.")
+    # Overplotting error trajectories (traj_err)
+    if bool_traj_err:
+        if traj_err is not None:
+            print("Showing multiple trajectories...")
+            traj_err = np.array(traj_err)
+            N_trajs = traj_err.shape[1]
+            for itraj in range(N_trajs):
+                traj_line += [
+                    go.Scatter3d(
+                        x=traj_err[0][itraj], y=traj_err[1][itraj], z=traj_err[2][itraj], mode='lines',
+                        line=dict(color=traj_err_color, width=traj_err_width),
+                        opacity=traj_err_opacity
+                    )
+                ]
+        else:
+            print("Multiple trajectories not defined but bool_traj_err is True.")
+ 
     #            traj_line += [go.Scatter3d(x=traj[0], y=traj[1], z=traj[2], mode='markers+lines', line=dict(color='black', width=8), marker=dict(color='black', size=3))]  # just "mode='lines'" would work as well, added markers to show projections
         
 ## ----------------------- copied from jonathan's code
