@@ -280,10 +280,10 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     vxy_ang0 (Optional[float]): Initial angle between P.O.S. velocity and R.A. axis [radians]
     vxy_ang0_span (Optional[float]): Total span of initial angles between P.O.S. velocity and R.A. axis to use for parameter space [radians]
     vxy_ang0_step (Optional[float]): Resolution of initial angles between P.O.S. velocity and R.A. axis to use for parameter space, default is ~5 degrees [radians]
-    z0_lim (Optional[tuple]): Min. and max. value of z0 (rel. radial dist.) to generate trajectories [au]
-    z0_step (Optional[float]): Resolution for z0 to generate trajectories [au]
-    vxy0_lim (Optional[tuple]): Min. and max. value of vxy0 (speed in RA/Decl. plane) to generate trajectories [km/s]
-    vxy0_step (Optional[float]): Resolution for z0 to generate trajectories [km/s]    
+    z0_lim (Optional[tuple]): Min. and max. value of z0 (initial line-of-sight dist.) to generate trajectories [au]
+    z0_step (Optional[float]): Resolution for z0 (initial line-of-sight dist.) to generate trajectories [au]
+    vxy0_lim (Optional[tuple]): Min. and max. value of vxy0 (initial speed in RA/Decl. plane) to generate trajectories [km/s]
+    vxy0_step (Optional[float]): Resolution for vxy0 (initial speed in RA/Decl. plane) to generate trajectories [km/s]    
     show_dist_plots (Optional[bool]): Whether to show plots of projected distances, angles, and final distance metrics (independent parameter for fitting)
     show_vel_ang (Optional[bool]): Whether to show estimation of initial orientation of P.O.S. velocity
     show_fit_cost (Optional[bool]): Whether to show plot with fitting fraction (and deviation) as a function of free parameters
