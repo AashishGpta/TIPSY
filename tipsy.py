@@ -816,8 +816,9 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True,m
     # scube_cleaned.write(fits_fil[:-5]+'_streamer.fits',format = 'fits',overwrite = True)
     return(scube_cleaned)
     
-def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], criteria='fit_fraction', threshold=0.90,min_resolution=True
-                      ,seperate_vxy=True,mean_replace=True):
+def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], criteria='fit_fraction',
+                    threshold=0.90, high_threshold=np.inf, min_resolution=True,
+                    seperate_vxy=True,mean_replace=True):
     '''
     Code to estimate uncertainities of free parameters used for TIPSY fitting. 
     
@@ -826,6 +827,7 @@ def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], cri
     pnames (Optional[str]): List of names (strings) of parameters for which to calculate representative values and errors
     criteria (Optional[str]): Quantity to be used to select good-enough fits for errors, default is fitting fraction
     threshold (Optional[float]): Lower limiting value of 'criteria', to select good-enough fits for errors
+    high_threshold (Optional[float]): Upper limiting value of 'criteria', to select good-enough fits for errors
     min_resolution (Optional[bool]): If True, replaces calculated errors less than the fitting resolution, with the fitting resolution
     seperate_vxy (Optional[bool]): If True, also provides errors for speed in R.A. and Decl. (vx0 and vy0), using error propogation
     mean_replace (Optional[bool]): If True, replaces the 'value' calculated as means of distributions of free parameters 
@@ -837,7 +839,7 @@ def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], cri
 '''
     from uncertainties import ufloat,umath
     
-    paramsg = params[params[criteria]>threshold]  # Good-enough fits
+    paramsg = params[(params[criteria]>threshold) & (params[criteria]<high_threshold)]  # Good-enough fits
 
 #     params2 = params[params.fit_fraction == params.fit_fraction.max()]
 #     params3 = params2[params2.deviation == params2.deviation.min()]  # best parameter combination
