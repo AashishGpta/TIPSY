@@ -415,7 +415,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         vxy0_step = np.abs(cwidth)
     if vxy0_lim == None:
         dev_vxy = np.abs(vz0)*(2**0.5)    #Rough estimate of vxy0 
-        d_dev_vxy = max(20*vxy0_step,4)      # No good reason to choose 20 or 4 :P
+        d_dev_vxy = max(10*vxy0_step,3)      # No good reason to choose 10 or 3 :P
         vxy0_min=max(0,dev_vxy-d_dev_vxy)  #vxy0_min always should be positive
         vxy0_max=dev_vxy+d_dev_vxy
     else:
@@ -509,7 +509,8 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         iaxis = 1
         con2 = (pctraj_full[iaxis]>=min(pccoords[iaxis])) & (pctraj_full[iaxis]<=max(pccoords[iaxis]))
         con_pc = con1&con2
-        con_pc[np.argmax(~con_pc):]=False # This is to remove trajectory section which reappears within FOV, very important to make interpolation work well
+        if (~con_pc).any():  # A check to avoid remove the whole trajectory when nothing leaves FOV
+            con_pc[np.argmax(~con_pc):]=False # This is to remove trajectory section which reappears within FOV, very important to make interpolation work well
         pctraj=pctraj_full[:,con_pc]
 
 
