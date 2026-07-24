@@ -527,15 +527,24 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
                 theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref))  # Using same theta_ref as observations
             # theta_ref_t = np.median(theta_t[r_t<r_thresh])  # Calculating new theta_ref but using same r_thresh as streamer, discarded because it returns nan for trajectories which don't come close enough
             # theta2_t = np.pi-np.abs(np.pi-np.abs(theta_t-theta_ref_means))  # Using same theta_ref as means, right thing to do?
-            d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2)
-            p = np.argsort(d_t)
-        #     spx = UnivariateSpline(d_t[p], pctraj[0][p],k=kspline)#, s=s)
-        #     spy = UnivariateSpline(d_t[p], pctraj[1][p],k=kspline)#, s=s)
-        #     spz = UnivariateSpline(d_t[p], pctraj[2][p],k=kspline)#, s=s)
-            spx = interp1d(d_t[p], pctraj[0][p],fill_value='extrapolate',kind='slinear')#, s=s)
-            spy = interp1d(d_t[p], pctraj[1][p],fill_value='extrapolate',kind='slinear')#, s=s)
-            spz = interp1d(d_t[p], pctraj[2][p],fill_value='extrapolate',kind='slinear')#, s=s)
-            traj_comp = np.array([spx(d_means),spy(d_means),spz(d_means)])
+
+            d_t = r_t*np.sqrt(1+(theta_weight*theta2_t)**2) # distance metric values for the trajectory
+            p = np.argsort(d_t)  
+            d_t_sorted = d_t[p]
+
+            # Remove duplicate/degenerate d_t values as interp1d/make_interp_spline requires strictly increasing x values.
+            _, unique_idx = np.unique(d_t_sorted, return_index=True)
+
+            if len(unique_idx) < 2:
+                # Not enough distinct points to interpolate a trajectory at all;
+                # treat this parameter combination as a non-fit rather than crashing.
+                traj_comp = np.full(pcmeans.shape, np.nan)
+            else:
+                p_unique = p[unique_idx]
+                spx = interp1d(d_t[p_unique], pctraj[0][p_unique],fill_value='extrapolate',kind='slinear')
+                spy = interp1d(d_t[p_unique], pctraj[1][p_unique],fill_value='extrapolate',kind='slinear')
+                spz = interp1d(d_t[p_unique], pctraj[2][p_unique],fill_value='extrapolate',kind='slinear')
+                traj_comp = np.array([spx(d_means),spy(d_means),spz(d_means)])
         else:
             traj_comp = np.full(pcmeans.shape,np.nan)  # Just nan array of same shape
 
