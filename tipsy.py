@@ -383,9 +383,11 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     y0 = arcsec2au(y0_as,dist) #(x0_as.to(u.radian).value*dist).to(u.au).value
     ## Initial L.O.S. velocity (km/s)
     vz0 = pcmeans[2][-1]*1e-3-svel
-    print("Initial x0, y0 and vz0:",x0,y0,vz0)
+    if verbose:
+        print("Initial x0, y0 and vz0:",x0,y0,vz0)
 
-    print("Now for the free parameters:")
+    if verbose:
+        print("Now for the free parameters:")
     ### Setting grid for free parameters
     ## Initial offset in radial distance
     if z0_step == None:  # By defualt use beam size as z0 resolution
@@ -638,7 +640,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
     return(param_grid2,traj_m,[traj_comp_m,pcmeans,pcstds])
 
 def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_interp=None
-                ,fit2html=False,html_path=None,fit2png=False,png_path=None,camera_vec=[1.5,1.5,1.5],dtick=None):
+                ,show_plot=True,fit2html=False,html_path=None,fit2png=False,png_path=None,camera_vec=[1.5,1.5,1.5],dtick=None):
 
     '''
     Code to visualize pointcloud, observational curve, theoretical curve for streamers in PPV space.
@@ -650,6 +652,7 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
     flux: N_elements long array containing flux values for observed streamer (used for colour)
     traj: 3xN1 array containing coordinates for a theoretical trajectory
     traj_interp: 3xN_elements array containing interpolated (or some extrapolated) coordinates for a theoretical trajectory
+    show_plot: Whether to show the 3D interactive plot (will be opened in the default web browser)
     fit2html: Whether to save 3D fitting plot to an interactive .html file    
     html_path: Path to save 3D fitting plot to .html file    
     fit2png: If True, save PPV diagram to a static .png file.
@@ -713,16 +716,21 @@ def fit_3d_plot(pccoords,pcmeans=None,pcstds=None,flux=None,traj=None,traj_inter
         fig.update_layout(scene = dict(xaxis = dict(dtick =dtick),yaxis = dict(dtick = dtick)))
 
     if fit2html:  # To save plot as interactive html file
-        if html_path == None:
-            html_path = str(input("Path to store html 3D plot:"))
+        if html_path is None:
+            raise ValueError("html_path is required when fit2html=True")
+        # if html_path == None:
+        #     html_path = str(input("Path to store html 3D plot:"))
         fig.write_html(html_path, include_plotlyjs='cdn')
     
     if fit2png:  # To save plot as static png file, useful for publications
-        if png_path == None:
-            png_path = str(input("Path to store png plot:"))
+        if png_path is None:
+            raise ValueError("png_path is required when fit2png=True")
+        # if png_path == None:
+        #     png_path = str(input("Path to store png plot:"))
         fig.write_image(png_path,format='png',scale=3)
         
-    fig.show()
+    if show_plot:    
+        fig.show()
     
 def streamer_subcube(original_cube,xmin,xmax,ymin,ymax,vmin,vmax,rms_thresh=3):
 
@@ -826,18 +834,18 @@ def streamer_cleaning(scube,use_scaled_inds=False,model=None,show_cluster=True,m
     # scube_cleaned.write(fits_fil[:-5]+'_streamer.fits',format = 'fits',overwrite = True)
     return(scube_cleaned)
     
-def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], criteria='fit_fraction',
-                    threshold=0.90, high_threshold=np.inf, min_resolution=True,
-                    seperate_vxy=True,mean_replace=True):
+def parameter_errors(params, criteria='fit_fraction',
+                    threshold=0.90, high_threshold=np.inf, pnames = ['vxy0','vxy_ang0','z0','final_time'],
+                    min_resolution=True,seperate_vxy=True,mean_replace=True):
     '''
     Code to estimate uncertainities of free parameters used for TIPSY fitting. 
     
     Args:
     params: Pandas DataFrame with all the parameter combinations used and corresponding deviations
-    pnames (Optional[str]): List of names (strings) of parameters for which to calculate representative values and errors
     criteria (Optional[str]): Quantity to be used to select good-enough fits for errors, default is fitting fraction
     threshold (Optional[float]): Lower limiting value of 'criteria', to select good-enough fits for errors
     high_threshold (Optional[float]): Upper limiting value of 'criteria', to select good-enough fits for errors
+    pnames (Optional[list]): List of names (strings) of parameters for which to calculate representative values and errors. Note: we have not experimented with this parameter enough, so chaging the default value may break things.
     min_resolution (Optional[bool]): If True, replaces calculated errors less than the fitting resolution, with the fitting resolution
     seperate_vxy (Optional[bool]): If True, also provides errors for speed in R.A. and Decl. (vx0 and vy0), using error propogation
     mean_replace (Optional[bool]): If True, replaces the 'value' calculated as means of distributions of free parameters 
@@ -862,7 +870,7 @@ def parameter_errors(params, pnames = ['vxy0','vxy_ang0','z0','final_time'], cri
 #     arrs[1] = paramsg[bools[2] & bools[0]][pnames[1]]
 #     arrs[2] = paramsg[bools[0] & bools[1]][pnames[2]]
 
-    pnames = ['vxy0','vxy_ang0','z0','final_time']  # (free) parameters to consider, could be an argument in future
+    # pnames = ['vxy0','vxy_ang0','z0','final_time']  # (free) parameters to consider, could be an argument in future
     vals = pd.DataFrame(index=pnames,columns=['value','error'])
 
     for i in range(len(pnames)):
