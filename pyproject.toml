@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=77"]  # >=77 for the PEP 639 `license = "MIT"` form
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tipsy"
+version = "1.0.0"
+description = "Trajectory of Infalling Particles in Streamers around Young stars"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE.md"]
+requires-python = ">=3.10"  # spectral-cube and cmasher have dropped 3.9
+authors = [{name = "Aashish Gupta", email = "aashishgupta3008@gmail.com"}]
+keywords = ["astronomy", "protostars", "streamers", "infall", "protoplanetary-disks"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+
+# Lower bounds are the oldest versions tested to work with the current code.
+dependencies = [
+    "numpy>=1.23",
+    "scipy>=1.9",
+    "pandas>=1.5",
+    "matplotlib>=3.6",
+    "astropy>=5.1",
+    "spectral-cube>=0.6.3",
+    "scikit-learn>=1.1",
+    "plotly>=5.10",
+    "uncertainties>=3.1",
+    "gofish>=1.4",
+    "cmasher>=1.6",
+    "pillow>=9.0",
+]
+
+[project.optional-dependencies]
+# rebound is only needed for rebound_trajectory(), which is an optional
+# alternative to the Mendoza+09 trajectories, and it compiles C at install time.
+rebound = ["rebound>=3.22"]
+
+[project.urls]
+Homepage = "https://github.com/AashishGpta/TIPSY"
+Paper = "https://ui.adsabs.harvard.edu/abs/2024A%26A...683A.133G/abstract"
+
+# Top-level modules, kept at the repository root so that `import tipsy` and
+# `import trivia_my` keep working exactly as before.
+[tool.setuptools]
+py-modules = ["tipsy", "trivia_my"]
