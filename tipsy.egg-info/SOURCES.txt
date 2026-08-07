@@ -1,0 +1,10 @@
+LICENSE.md
+README.md
+pyproject.toml
+tipsy.py
+trivia_my.py
+tipsy.egg-info/PKG-INFO
+tipsy.egg-info/SOURCES.txt
+tipsy.egg-info/dependency_links.txt
+tipsy.egg-info/requires.txt
+tipsy.egg-info/top_level.txt

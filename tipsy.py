@@ -635,7 +635,7 @@ def traj_fitting(streamer_cube,Ms_val,dist,svel,N_elements=10,theta_weight=1
         y_t = au2arcsec(traj_m[0][1],dist)
         vz_t = (traj_m[1][2]+svel)*1e3
         pctraj_m = np.array([x_t,y_t,vz_t]) # trajectory in same format as everything else
-        fit_3d_plot(pccoords,pcmeans,pcstds,flux,pctraj_m,traj_comp_m,fit2html,html_path)          
+        fit_3d_plot(pccoords,pcmeans,pcstds,flux,pctraj_m,traj_comp_m,show_plot=True,fit2html=fit2html,html_path=html_path)          
     
     return(param_grid2,traj_m,[traj_comp_m,pcmeans,pcstds])
 
