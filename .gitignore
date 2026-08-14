@@ -1,3 +1,9 @@
 # Ignore these files/folders
 .ipynb_checkpoints/
 __pycache__/
+# Packaging artifacts
+*.egg-info/
+build/
+dist/
+__pycache__/
+*.pyc
