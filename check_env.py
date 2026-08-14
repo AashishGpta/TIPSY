@@ -143,6 +143,7 @@ def main():
             marker=dict(size=9, color="red", opacity=.8, symbol="square"))])
         fig.update_layout(legend_orientation="h")
         return f"Scatter3d + ErrorX ok, nbformat {nbformat.__version__}"
+    run("plotly figure", t_plot)
         
     # 6. rebound, only if the optional extra is installed.
     def t_rebound():

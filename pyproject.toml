@@ -9,7 +9,7 @@ description = "Trajectory of Infalling Particles in Streamers around Young stars
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE.md"]
-requires-python = ">=3.10"  # spectral-cube and cmasher have dropped 3.9
+requires-python = ">=3.9"  # spectral-cube and cmasher have dropped 3.9
 authors = [{name = "Aashish Gupta", email = "aashishgupta3008@gmail.com"}]
 keywords = ["astronomy", "protostars", "streamers", "infall", "protoplanetary-disks"]
 classifiers = [

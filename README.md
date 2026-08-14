@@ -20,12 +20,13 @@ pip install git+https://github.com/AashishGpta/TIPSY.git
 ```
 This installs TIPSY and all the modules it needs. `import tipsy` and `import trivia_my` then work from any directory.
 
-It is recommended to install TIPSY in a new Python environment, so that it does not interfere with existing installations:
+If you do not want TIPSY installation to interfere with existing installations, I recommended to install TIPSY in a new Python environment:
 ```
 conda create -n tipsyenv python=3.11
 conda activate tipsyenv
 pip install git+https://github.com/AashishGpta/TIPSY.git
 ```
+TIPSY works with Python 3.9 and later. On Python 3.9, pip installs older versions of some modules, so Python 3.11 is recommended.
 
 The `rebound_trajectory` function needs the [rebound](https://rebound.readthedocs.io) package, which is not installed by default because it is only an alternative to the Mendoza et al. (2009) trajectories. To include it:
 ```
